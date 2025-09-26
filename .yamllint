@@ -1,0 +1,44 @@
+# .yamllint
+extends: default
+rules:
+  # --- Length & folding -------------------------------------------------------
+  line-length:
+    max: 120 # Practical limit; yamlfmt unwraps long scalars anyway
+    level: warning # Don’t fail CI just for long prose
+    allow-non-breakable-words: true # Allow hashes/IDs that exceed max
+    allow-non-breakable-inline-mappings: true # Allow long inline maps if they can't be wrapped safely
+  # --- Booleans & truthiness --------------------------------------------------
+  truthy:
+    check-keys: false # Require explicit true/false; avoid YAML 1.1 truthy (yes/no/on/off/1/0)
+  # --- Comments spacing -------------------------------------------------------
+  comments:
+    min-spaces-from-content: 1 # yamlfmt/Prettier prefer exactly 1 space before inline '#'
+  # --- Document marker --------------------------------------------------------
+  document-start: disable # yamlfmt removes '---' by default; disabling avoids churn
+  # --- Indentation & blank lines ---------------------------------------------
+  indentation:
+    spaces: 2 # yamlfmt uses 2-space indent
+    indent-sequences: consistent # List items align cleanly under their parent key
+  empty-lines:
+    max: 1 # Avoid multiple blank lines (yamlfmt collapses anyway)
+  # --- Whitespace hygiene -----------------------------------------------------
+  trailing-spaces: enable # Strip stray trailing spaces
+  new-line-at-end-of-file: enable # Enforce POSIX text file convention
+  # --- Safety checks ----------------------------------------------------------
+  key-duplicates: enable # Catch silently overwritten keys
+  octal-values: enable # Warn on YAML 1.1-style octals like 077 (parser footgun)
+  # --- Spacing around colons, hyphens, braces, brackets ----------------------
+  # Keep these in sync with yamlfmt's style:
+  colons:
+    max-spaces-before: 0 # Never allow spaces before ':'
+    max-spaces-after: 1 # Exactly one space after ':'
+    level: error
+  hyphens:
+    max-spaces-after: 1 # Enforce '- ' (one space after list dash)
+    level: error
+  braces: # Controls '{ key: val }' inline maps
+    min-spaces-inside: 0 # '{a: b}' (no inner padding), same as yamlfmt not prettier
+    max-spaces-inside: 0
+  brackets: # Controls '[1, 2, 3]' inline sequences
+    min-spaces-inside: 0 # '[a, b]' (no inner padding), match yamlfmt not prettier
+    max-spaces-inside: 0

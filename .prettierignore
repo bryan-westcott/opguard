@@ -1,0 +1,14 @@
+uv.lock
+.venv/
+notebooks/
+.mypy_cache/
+package-lock.json
+package.json
+node_modules/
+.idea/
+.ruff_cache/
+*cache*
+node_modules/
+data/
+.git/
+*.swp
