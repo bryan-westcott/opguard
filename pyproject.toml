@@ -1,7 +1,7 @@
 
 [project]
-name = "opguard Util"
-description = "opguard-util"
+name = "opguard-util"
+description = "opguard Utilities"
 requires-python = "==3.11.*"
 readme = "README.md"
 version = "0.0.1"
