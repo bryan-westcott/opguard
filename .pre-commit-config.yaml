@@ -390,31 +390,31 @@ repos:
               latexmk -pdf -interaction=nonstopmode "$file"
             done
           ' --
-  #
-  # ---------------------------------------------------------
-  # pandoc/xelatex (local) - custom script to convert markdown to pdf
-  # ---------------------------------------------------------
-  # Note: requires associated template to trigger
-  - repo: local
-    hooks:
-      - id: pandoc-md-to-pdf
-        name: Pandoc Markdown to PDF (custom script)
-        description: |-
-          Convert markdown (<file>.md) to PDF (<file>.pdf) using
-          Pandoc+XeLaTex when template (<file>.template.tex) exists
-        language: system
-        files: \.md$
-        entry: |-
-          bash -c '
-            for file in "$@"; do
-              base="${file%.md}"
-              template="${base}.template.tex"
-              output="${base}.pdf"
-              if [ -f "$template" ]; then
-                pandoc "$file" -o "$output" --pdf-engine=xelatex -H "$template"
-              else
-                echo "Template not found: $template" >&2
-                exit 1
-              fi
-            done
-          ' --
+        #
+        # ---------------------------------------------------------
+        # pandoc/xelatex (local) - custom script to convert markdown to pdf
+        # ---------------------------------------------------------
+        # Note: requires associated template to trigger
+#  - repo: local
+#    hooks:
+#      - id: pandoc-md-to-pdf
+#        name: Pandoc Markdown to PDF (custom script)
+#        description: |-
+#          Convert markdown (<file>.md) to PDF (<file>.pdf) using
+#          Pandoc+XeLaTex when template (<file>.template.tex) exists
+#        language: system
+#        files: \.md$
+#        entry: |-
+#          bash -c '
+#            for file in "$@"; do
+#              base="${file%.md}"
+#              template="${base}.template.tex"
+#              output="${base}.pdf"
+#              if [ -f "$template" ]; then
+#                pandoc "$file" -o "$output" --pdf-engine=xelatex -H "$template"
+#              else
+#                echo "Template not found: $template" >&2
+#                exit 1
+#              fi
+#            done
+#          ' --
