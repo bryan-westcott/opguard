@@ -35,22 +35,22 @@ def test_blip(test_image: PILImage | None = None) -> dict[str, Any]:
     test_image = load_test_image()
     with Blip2() as blip1:
         caption_blip2 = blip1(input_raw=test_image)
-        logger.info("blip2 (blip1):", caption_blip2)
+        logger.info(f"blip2 (blip1): {caption_blip2}")
         caption_blip2_conditional = blip1(
             input_raw=test_image,
             text="Question: What color is her hair? Answer:",
         )
-        logger.info("blip2 (question):", caption_blip2_conditional)
+        logger.info(f"blip2 (question): {caption_blip2_conditional}")
         return_blip2 = {
             "caption_blip2": caption_blip2,
             "caption_blip2_conditional": caption_blip2_conditional,
         }
     with Blip1() as blip2:
         caption_blip1 = blip2(input_raw=test_image)
-        logger.info("blip1 (blip2):", caption_blip1)
+        logger.info(f"blip1 (blip2): {caption_blip1}")
         text_blip1 = "Hair Color"
         caption_blip1_conditional = blip2(input_raw=test_image, text=text_blip1)
-        logger.info(f'blip1 (text="{text_blip1}"):', caption_blip1_conditional)
+        logger.info(f'blip1 (text="{text_blip1}"): {caption_blip1_conditional}')
         return_blip1 = {
             "caption_blip1": caption_blip1,
             "caption_blip1_conditional": caption_blip1_conditional,
@@ -91,14 +91,14 @@ def test_inversion(
             "reconstructed_image": reconstructed_image,
             "reconstructed_config": reconstructed_config,
         }
+    blend_image = blend(reconstructed_image.resize(display_size), test_image.resize(display_size), 0.5)
     image_grid = [
-        test_image,
         reconstructed_image.resize(display_size),
         test_image.resize(display_size),
-        blend(reconstructed_image, test_image, 0.5).resize(display_size),
+        blend_image.resize(display_size),
     ]
     make_image_grid(image_grid, 1, len(image_grid))
-    return return_inverse | return_reconstructed | {"test_image": test_image}
+    return return_inverse | return_reconstructed | {"test_image": test_image} | {"image_grid": image_grid}
 
 
 def test_control(test_image: PILImage | None = None) -> dict[str, Any]:
