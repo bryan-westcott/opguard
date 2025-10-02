@@ -144,6 +144,7 @@ repos:
       - id: ruff
         name: ruff
         language_version: python3.11
+        args: [--fix] # run ruff check --fix
       - id: ruff-format
         name: ruff-format
         language_version: python3.11

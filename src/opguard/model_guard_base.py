@@ -1,7 +1,7 @@
 """High-level runtime guard for CUDA-backed inference.
 
 This module defines `ModelGuardBase`, an abstract base class that wraps the
-lower-level utilities in `cuda_guard.py` to run VRAM-heavy models safely.
+lower-level utilities in `model_guard.py` to run VRAM-heavy models safely.
 It centralizes device/dtype resolution, AMP/grad modes, cross-device sync,
 traceback sanitization, and cache cleanup—while leaving model loading and
 the forward pass to subclasses.
@@ -27,16 +27,20 @@ Subclasses specialize loading/freeing and the call path for concrete models
 #   Note: this must be in all derived classe to avoid contravariance errors
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, ClassVar
-
-if TYPE_CHECKING:
-    from collections.abc import Iterable
+from typing import Any, ClassVar
 
 import torch
-from huggingface_hub import HfApi
 from loguru import logger
 
-from .cuda_guard import DeviceLike, DeviceMapLike, cuda_guard, device_guard, dtype_guard, sync_gc_and_cache_cleanup
+from .model_guard_util import (
+    DeviceLike,
+    DeviceMapLike,
+    device_guard,
+    dtype_guard,
+    model_guard,
+    sync_gc_and_cache_cleanup,
+    variant_guard,
+)
 
 
 class ModelGuardBase(ABC):
@@ -216,7 +220,8 @@ class ModelGuardBase(ABC):
         # Choose dtype
         self.dtype_preference: torch.dtype = dtype_override or type(self).DTYPE_PREFERENCE
         self.dtype: torch.dtype = dtype_guard(device_list=self.device_list, dtype_desired=self.dtype_preference)
-        self.variant = self._variant_selector()
+
+        self.variant: str = variant_guard(dtype=self.dtype, model_id=self.model_id, revision=self.revision)
 
         logger.debug(f"Choices for {type(self).__name__}: {self.dtype=}, {self.variant=}")
         self.keep_warm: bool = keep_warm
@@ -279,25 +284,6 @@ class ModelGuardBase(ABC):
         """Return whether gradients needed."""
         return type(self).NEED_GRADS
 
-    def _variant_selector(self) -> str | None:
-        """Select fp16 based on availability and preference in Huggingface Hub."""
-        if self.dtype == torch.float32:
-            # if 32-bit, return no variant
-            variant = None
-        elif self.dtype in (torch.float16, torch.bfloat16):
-            # otherwise, half precision requested
-            # Heuristic: check for common fp16-variant filenames used by Diffusers/Transformers."""
-            # Note: repo_id is the same as model_id
-            api = HfApi()
-            files: Iterable[str] = api.list_repo_files(repo_id=self.model_id, revision=self.revision)
-            # Look for fp16.safetensors, float16.safetensors, fp16.bin or float16.bin suffixes in filename
-            has_fp16 = any(("fp16" in f) or ("float16" in f) for f in files)
-            variant = "fp16" if has_fp16 else None
-        else:
-            message = f"Invalid dtype provided: {self.dtype=}"
-            raise ValueError(message)
-        return variant
-
     def _load(self) -> None:
         """Load detector and processor (if applicable), unless already loaded."""
         # Always indicate potentially unfreed
@@ -335,14 +321,14 @@ class ModelGuardBase(ABC):
             self.extra_info = {}
 
         # Note: gc and cache clear recommended since
-        # models themselves are not freed inside cuda_guard
+        # models themselves are not freed inside model_guard
         if not clear_cache:
             logger.debug("Free complete (skipping sync, garbage collection, and torch cache empty)")
             return
 
         # Apply GC and cache clear as we just freed up the models
         # Note: suppress errors as this is best-effort VRAM freeup
-        #       and we already handled RuntimeErrors inside cuda_guard
+        #       and we already handled RuntimeErrors inside model_guard
         # Note: must sync and gc to get proper cache clear
         sync_gc_and_cache_cleanup(
             do_sync=True,
@@ -385,14 +371,15 @@ class ModelGuardBase(ABC):
                 self._load()
             # Autocast for proper precision, accounting for gradient needs, also stream synchronize
             # Note: dtype and device guard are already pre-checked in init
-            with cuda_guard(
+            with model_guard(
                 dtype=self.dtype,
                 need_grads=self.need_grads,
                 device=self.device,
                 device_map=self.device_map,
                 sanitize_cuda_errors=self.sanitize_cuda_errors,
-                device_list=self.device_list,  # previously computed, so override
-                effective_dtype=self.dtype,  # previously computed, so override
+                device_list_override=self.device_list,  # previously computed, so override
+                dtype_override=self.dtype,  # previously computed, so override
+                variant_override=self.variant,  # previously computed, so override (no model_id/revision needed)
             ) as (_device_list, _effective_dtype, detach):
                 # Note: cache_guard will handle detaching outptu and tracebacks
                 return detach(self._caller(input_raw=input_raw, **kwargs))
