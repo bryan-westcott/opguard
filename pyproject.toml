@@ -1,6 +1,22 @@
+# These are boilerplate standard configuration options including development
+# tools, notebooks and popular linters/formatters/type-checkers
+
+# Quick start:
+#   Ensure python version matches in all:
+#       - pyproject.toml:project: 3.1x.*
+#       - pyproject.toml:linters: py31x
+#        - .pre-commit-config.yaml:language_version: python3.1x
+#   Run once:
+#       ./dev-scripts initialize-pre-commit.sh
+#   Initialize environment (as needed)
+#       source ./dev-scripts/dev-init
+#   Install editable package (once)
+#       uv pip install -e ".[test]"
+#   Run tests
+#       uv run pytest
 
 [project]
-name = "opguard-util"
+name = "opguard"
 description = "opguard Utilities"
 requires-python = "==3.11.*"
 readme = "README.md"
@@ -59,6 +75,7 @@ dev = [
     "supervision>=0.26.1",
 ]
 
+
 notebook = [
     "ipykernel>=6.29.5",
     "jupyter>=1.1.1",
@@ -81,6 +98,53 @@ notebook = [
     "jupyterlab-git>=0.50.2",
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=8",
+    "pytest-cov",
+    "pytest-xdist",
+    "pytest-codeblocks>=0.16.1",
+    "xdoctest>=1.2.0",
+    "hypothesis",
+]
+
+# To build a wheel/sdist, with:
+# uv build
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# entrypoint for tests
+[project.scripts]
+smoke-cpu = "opguard.tests.smoke:cpu"
+smoke-gpu = "opguard.tests.smoke:gpu"
+smoke-bfloat = "opguard.tests.smoke:bfloat"
+slow = "opguard.tests.slow:main"
+
+# Pytest config (minimal and portable)
+[tool.pytest.ini_options]
+# Don't set pythonpath, rely on editable install
+testpaths = ["src/opguard/tests"]
+python_files = ["smoke.py"]
+python_functions = ["cpu", "gpu", "bfloat"]
+# Default flags: no stdout spam, show locals on failure, fail on unknown marks
+addopts = """
+  -q
+  --strict-markers
+  --showlocals
+  --maxfail=1
+  --codeblocks
+  --doctest-modules
+  --xdoctest
+  --xdoctest-style=google
+"""
+# Declare marks
+markers = [
+    "smoke-cpu: fast smoke tests that run on CPU",
+    "smoke-gpu: fast smoke tests that require GPU",
+    "smoke-bfloat: fast smoke tests that require GPU with bfloat support",
+    "slow: opt-in slow tests",
+]
 
 [tool.uv]
 # never use system python
@@ -115,6 +179,14 @@ instantstyle-plus = { git = "https://github.com/bryan-westcott/instantstyle-plus
 name = "pytorch-cu"
 url = "https://download.pytorch.org/whl/cu124"
 explicit = true
+
+# Allow install of a local editable copy with:
+# uv pip install -e .
+# Note: requires __init__.py
+[tool.setuptools.packages.find]
+where = ["src"]
+#exclude = ["tests*"]
+
 
 [tool.mypy]
 python_version = "3.11"
@@ -219,6 +291,9 @@ docstring-code-format = true
 # enabled.
 docstring-code-line-length = "dynamic"
 
+[tool.ruff.lint.per-file-ignores]
+# Assert is used by pytest
+"src/**/tests/*.py" = ["S101"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
