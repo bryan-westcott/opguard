@@ -495,7 +495,7 @@ def variant_guard(
         # otherwise, half precision requested
         # Heuristic: check for common fp16-variant filenames used by Diffusers/Transformers."""
         # Note: repo_id is the same as model_id
-        api = HfApi(local_files_only=True)
+        api = HfApi()
         files: Iterable[str] = api.list_repo_files(repo_id=model_id, revision=revision)
         # Look for fp16.safetensors, float16.safetensors, fp16.bin or float16.bin suffixes in filename
         has_fp16 = any(("fp16" in f) or ("float16" in f) for f in files)
