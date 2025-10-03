@@ -47,8 +47,9 @@ from __future__ import annotations
 import gc
 import re
 import traceback
-from collections.abc import Callable, Generator, Mapping
+from collections.abc import Callable, Generator, Iterator, Mapping
 from contextlib import contextmanager, suppress
+from functools import wraps
 from typing import TYPE_CHECKING, TypeAlias
 
 if TYPE_CHECKING:
@@ -305,6 +306,42 @@ def to_cpu_detached(x: object) -> object:
     return x
 
 
+def make_guarded_call(
+    call: Callable[..., object],
+    wrapper: Callable[[object], object],
+) -> Callable:
+    """Return a callable that runs `call(*args, **kwargs)` and then applies `wrapper`.
+
+    Args:
+        call:
+            The original function to wrap. Its signature/metadata are preserved
+            via `functools.wraps`.
+        wrapper:
+            A post-processing function applied to the result of `call`.
+            This can be identity (no-op) or a transformation (e.g., move/convert/
+            sanitize outputs).
+
+    Returns:
+        A new function with the same signature as `call`. Each invocation:
+        1) computes `out = call(*args, **kwargs)`
+        2) returns `wrapper(out)`.
+
+    Notes:
+        - This does not modify `call` in place; it returns a new callable.
+        - If `wrapper` is an identity function, the behavior is effectively
+          the same as calling `call` directly.
+        - Useful with contexts that manage resources around the call while
+          normalizing/transforming outputs (e.g., CPU moves, detaching, casting).
+    """
+
+    @wraps(call)
+    def wrapped(*args: object, **kwargs: object) -> object:
+        out = call(*args, **kwargs)
+        return wrapper(out)  # type: ignore[return-value]
+
+    return wrapped
+
+
 def sync_gc_and_cache_cleanup(
     *,
     device_list: list[torch.device],
@@ -349,6 +386,32 @@ def sync_gc_and_cache_cleanup(
                         torch.cuda.empty_cache()
                 else:
                     torch.cuda.empty_cache()
+
+
+# ---------- helpers for setting .train() attr ----------
+
+
+def _call_attr_recursive(x: object | None, attr: str, *args: object, **kwargs: object) -> None:
+    """Recursively call x.<attr>(*args, **kwargs) on leaves inside dict/list/tuple/set.
+
+    - If x is a Mapping: recurse into values, then return.
+    - If x is a list/tuple/set: recurse into items, then return.
+    - Else: if x has a callable attribute `attr`, call it strictly (no fallbacks).
+      If it doesn't, silently ignore.
+    """
+    if x is None:
+        return
+    if isinstance(x, Mapping):
+        for v in x.values():
+            _call_attr_recursive(v, attr, *args, **kwargs)
+        return
+    if isinstance(x, (list, tuple, set)):
+        for v in x:
+            _call_attr_recursive(v, attr, *args, **kwargs)
+        return
+    fn = getattr(x, attr, None)
+    if callable(fn):
+        fn(*args, **kwargs)
 
 
 # ---------- guards you can compose ----------
@@ -567,7 +630,8 @@ def cache_guard(
     device_list: list[torch.device],
     sanitize_cuda_errors: bool = True,
     detach_outputs: bool = False,
-) -> Generator[DetachFn, None, None]:
+    call: Callable[..., object] | None = None,
+) -> Iterator[Callable]:
     """Sync/sanitize/cleanup wrapper across all provided CUDA devices.
 
     Features:
@@ -578,19 +642,26 @@ def cache_guard(
     * handles exceptions gracefully
 
     Yields:
-         a callable `detach(x)` that applies `to_cpu_detached(x)` when
-        `detach_outputs=True`, else returns `x` unchanged. Use like:
+        if call function provided:
+            a local-scope version of call wrapped in detach
+        else:
+            a callable `detach(x)` that applies `to_cpu_detached(x)` when
+            `detach_outputs=True`, else returns `x` unchanged. Use like:
 
     Usage:
         with cache_guard(device_list=device_list, detach_outputs=True) as detach:
             out = detach(run_model(...))
     """
-
-    def detach(x: object) -> object:
-        return to_cpu_detached(x) if detach_outputs else x
-
     try:
-        yield detach
+        if call is not None:
+            # apply the wrapper
+            if detach_outputs:
+                yield make_guarded_call(call, to_cpu_detached)
+            else:
+                yield call
+        else:
+            # return the wrapper itself
+            yield to_cpu_detached
         # First sync: surface latent CUDA faults here (propagate if not sanitized).
         # Note: do not suppress, there is one more best effort sync in finally
         for dev in device_list:
@@ -615,6 +686,21 @@ def cache_guard(
         )
 
 
+def eval_guard(models: object, *, train_mode: bool = False) -> None:
+    """Recursively set evaluation mode on all models contained in `models`.
+
+    - Calls `train(False)` (equivalent to `eval()`) on any object that defines it.
+    - Traverses common containers (dict, list, tuple, set) and applies in place.
+    - Does *not* affect gradient computation; pair with `torch.no_grad()` or your
+      own grad context for inference.
+
+    This function is one-way (no restoration). Use a context manager if you need
+    to save and restore prior training modes.
+    """
+    # Prefer the boolean API (propagates to children) and keep it strict.
+    _call_attr_recursive(models, "train", train_mode)
+
+
 # ---------- composed model_guard ----------
 
 
@@ -630,10 +716,13 @@ def model_guard(  # noqa: PLR0913
     device_map: DeviceMapLike | None = None,
     sanitize_cuda_errors: bool = True,
     detach_outputs: bool = True,
+    call: Callable[..., object] | None = None,
     device_list_override: list[torch.device] | None = None,
     dtype_override: torch.dtype | None = None,
     variant_override: str | None = None,
-) -> Generator[tuple[list[torch.device], torch.dtype, DetachFn], None, None]:
+    models: object | None = None,
+    train_mode: bool = False,
+) -> Generator[tuple[list[torch.device], torch.dtype, Callable], None, None]:
     """Compose device/dtype/grad/AMP/cache guards and yield resolved settings.
 
     Args:
@@ -665,8 +754,12 @@ def model_guard(  # noqa: PLR0913
             If True, CUDA-ish `RuntimeError`s are sanitized: we detach Python
             tracebacks (to avoid VRAM retention via frame locals), sync devices,
             run GC, and re-raise a concise error.
-        deatch_outputs:
+        detach_outputs:
             Setup detach function to optionally run torch detach on all outputs
+        call:
+            function to call the model, with outputs automatically detached
+        models: (optional) provide any torch models to apply eval_guard
+        train_mode: (optional) set <model>.train(train_mode) in eval_guard, if models provided
         device_list_override: (optional) previously computed device list from device_guard()
         dtype_override: (optional) previously computed device list from dtype_guard()
         variant_override: (optional) previously computed variant from variant_guard()
@@ -714,6 +807,10 @@ def model_guard(  # noqa: PLR0913
         revision=revision,
         variant_override=variant_override,
     )
+    eval_guard(
+        models=models,
+        train_mode=train_mode,
+    )
     with (
         grad_guard(need_grads=need_grads),
         autocast_guard(dtype=effective_dtype),
@@ -721,7 +818,8 @@ def model_guard(  # noqa: PLR0913
             device_list=device_list,
             detach_outputs=detach_outputs,
             sanitize_cuda_errors=sanitize_cuda_errors,
-        ) as detach,
+            call=call,
+        ) as guarded_call,
     ):
-        logger.debug(f"Context for model_guard: {device_list=}, {effective_dtype=}, {variant=}, {detach=}")
-        yield device_list, effective_dtype, detach
+        logger.debug(f"Context for model_guard: {device_list=}, {effective_dtype=}, {variant=}, {guarded_call=}")
+        yield device_list, effective_dtype, guarded_call

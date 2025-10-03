@@ -377,12 +377,15 @@ class ModelGuardBase(ABC):
                 device=self.device,
                 device_map=self.device_map,
                 sanitize_cuda_errors=self.sanitize_cuda_errors,
+                call=self._caller,
+                models=(self._processor, self._detector),
+                train_mode=False,
                 device_list_override=self.device_list,  # previously computed, so override
                 dtype_override=self.dtype,  # previously computed, so override
                 variant_override=self.variant,  # previously computed, so override (no model_id/revision needed)
-            ) as (_device_list, _effective_dtype, detach):
+            ) as (_device_list, _effective_dtype, guarded_call):
                 # Note: cache_guard will handle detaching outptu and tracebacks
-                return detach(self._caller(input_raw=input_raw, **kwargs))
+                return guarded_call(input_raw=input_raw, **kwargs)
         finally:
             # Agressively free up VRAM if desired
             # Ensure free as expected even on error
