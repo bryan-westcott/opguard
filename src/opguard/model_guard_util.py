@@ -27,14 +27,18 @@ What this fixes:
     - single convenience guard: cuda_gurad
 
 Composite context manager:
-- `model_guard`: compose device/dtype/grad/AMP/cache guards, with optional multi-GPU support.
+- model_guard: compose device/dtype/grad/AMP/cache guards, with optional multi-GPU support.
 
 Composable context managers:
-- `cache_guard`: sync across devices, sanitize CUDA errors, GC, and clear cache.
-- `grad_guard`: toggle `torch.set_grad_enabled` / `torch.inference_mode`.
-- `autocast_guard`: enable autocast for the chosen dtype on CUDA.
-- `device_guard`: resolve a deterministic device list (device or device_map).
-- `dtype_guard`: validate requested dtype (bf16→fp16 fallback if needed).
+- device_guard: resolve a deterministic device list (from device or device_map).
+- dtype_guard: validate requested dtype (bf16→fp16 fallback if needed).
+- variant_guard: choose the Hub download variant (e.g., "fp16") from dtype/repo contents.
+- eval_guard: recursively set .eval() or .train() mode on all models provided.
+- grad_guard: toggle torch.set_grad_enabled / torch.inference_mode.
+- autocast_guard: scope torch.autocast for the chosen device/dtype to reduce compute/memory.
+- vram_guard: Prevent VRAM from getting pinned by stale tensors:
+                sync streams, detach/move outputs off-GPU as needed, run GC,
+                and torch.cuda.empty_cache(); coalesce/surface CUDA errors deterministically.
 
 Utility functions:
 - Check support for bfloat16 (based on compute capability)
@@ -44,20 +48,32 @@ Utility functions:
 
 from __future__ import annotations
 
+import ast
 import gc
+import hashlib
+import inspect
+import json
+import os
 import re
+import shutil
+import textwrap
 import traceback
 from collections.abc import Callable, Generator, Iterator, Mapping
 from contextlib import contextmanager, suppress
 from functools import wraps
-from typing import TYPE_CHECKING, TypeAlias
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
 import torch
-from huggingface_hub import HfApi
+from diffusers import DiffusionPipeline
+from huggingface_hub import HfApi, snapshot_download
+from huggingface_hub.file_download import repo_folder_name
+from huggingface_hub.utils import LocalEntryNotFoundError
 from loguru import logger
+from transformers import AutoModel
 
 # ---------- type aliases (Py 3.11) ----------
 DeviceLike: TypeAlias = int | str | torch.device
@@ -414,6 +430,102 @@ def _call_attr_recursive(x: object | None, attr: str, *args: object, **kwargs: o
         fn(*args, **kwargs)
 
 
+# ---------- helpers for cached models ----------
+
+
+def hf_hub_cache_dir() -> Path:
+    """Return the absolute path to the Hugging Face Hub cache directory.
+
+    Resolution order (first match wins):
+      1. ``HF_HUB_CACHE`` — absolute cache path for Hub repos.
+      2. ``HF_HOME``      — base directory; cache lives under ``HF_HOME / "hub"``.
+      3. ``XDG_CACHE_HOME`` (non-Windows) — use ``XDG_CACHE_HOME / "huggingface" / "hub"``.
+      4. Default          — ``~/.cache/huggingface/hub``.
+
+    The resulting path is expanded (``~``) and normalized via ``Path.resolve()``.
+
+    Returns
+    -------
+    pathlib.Path
+        The resolved cache directory path.
+
+    Notes
+    -----
+    - This mirrors the precedence used by ``huggingface_hub`` so tools that
+      compute paths relative to the Hub cache (e.g., a sibling ``exports`` tree)
+      stay consistent with user configuration.
+    - This function does not create the directory; it only computes its location.
+    - On Windows, ``XDG_CACHE_HOME`` is uncommon; the default branch will place
+      the cache under the user's home directory.
+    """
+    if "HF_HUB_CACHE" in os.environ:
+        cache_dir = Path(os.environ["HF_HUB_CACHE"]).expanduser()
+    elif "HF_HOME" in os.environ:
+        cache_dir = Path(os.environ["HF_HOME"]).expanduser() / "hub"
+    elif "XDG_CACHE_HOME" in os.environ:
+        cache_dir = Path(os.environ["XDG_CACHE_HOME"]).expanduser() / "huggingface" / "hub"
+    else:
+        cache_dir = Path.home() / ".cache" / "huggingface" / "hub"
+    return cache_dir.resolve()
+
+
+def _loader_fingerprint(fn: Callable[..., object]) -> str:
+    """Compute a stable-ish fingerprint for a loader function.
+
+    The fingerprint prefers a hash of the function's **AST** (source parsed with
+    locations stripped) to increase stability across edits like reformatting.
+    If source is unavailable (e.g., builtins/C-extensions/dynamic functions),
+    it falls back to hashing the function's code object representation. If AST
+    parsing fails, the normalized source text is hashed instead.
+
+    Strategy (first successful step is used)
+    ---------------------------------------
+    1) ``inspect.getsource(fn)`` → normalize with ``textwrap.dedent`` →
+       ``ast.parse`` → SHA-256 of ``ast.dump(..., include_attributes=False)``.
+    2) If AST parsing fails: SHA-256 of the normalized source text.
+    3) If source retrieval fails: SHA-256 of ``repr(fn.__code__)`` (or ``repr(None)``).
+
+    Parameters
+    ----------
+    fn : Callable[..., object]
+        The function to fingerprint.
+
+    Returns
+    -------
+    str
+        A hex SHA-256 digest representing the function's implementation.
+
+    Limitations
+    -----------
+    - This captures the function *definition* only; it does **not** include
+      runtime state such as globals, environment variables, or files on disk.
+      If your loader's behavior depends on such inputs, include them in a
+      separate signature layer (e.g., hash of ``args``/``kwargs``/config).
+    - Bytecode and AST formats can vary across Python versions; the AST path is
+      usually more stable, but fingerprints are not guaranteed to be cross-version
+      identical in all cases.
+    - For nested/closure-heavy functions, the fallback code-object hash may change
+      if outer scopes change, even if the inner function body is the same.
+    """
+    try:
+        # get and normalize source (builtins/C-extensions may not have it)
+        src = inspect.getsource(fn)
+        src_normalized = textwrap.dedent(src)
+        try:
+            # parse AST; on failure, hash the normalized source text
+            tree = ast.parse(src_normalized)
+            dump = ast.dump(tree, annotate_fields=True, include_attributes=False)
+            base_str = dump
+        except (SyntaxError, ValueError):
+            base_str = src_normalized
+    except (OSError, TypeError):
+        # source not available / builtins / C-extensions / dynamic objects
+        co = getattr(fn, "__code__", None)  # note: __code__, not "__coded__"
+        base_str = repr(co)
+
+    return hashlib.sha256(base_str.encode("utf-8")).hexdigest()
+
+
 # ---------- guards you can compose ----------
 
 
@@ -539,9 +651,79 @@ def variant_guard(
     dtype: torch.dtype | None = None,
     model_id: str | None = None,
     revision: str | None = None,
+    local_files_only: bool = True,
     variant_override: str | None = None,
 ) -> str:
-    """Select fp16 if availabile in Huggingface Hub and half-precision preference."""
+    """Decide which Hugging Face Hub *variant* to request for a model download.
+
+    This helper returns a `variant` string suitable for passing to
+    `huggingface_hub.snapshot_download(..., variant=...)` based on:
+      1) an explicit `variant_override`, or
+      2) the requested tensor `dtype` and the repository's files.
+
+    Behavior
+    --------
+    - If `variant_override` is provided (non-None), it is returned as-is.
+    - If `dtype` is `torch.float32`, returns the empty string (no variant).
+    - If `dtype` is `torch.float16` or `torch.bfloat16`, the function queries
+      the repo file list (optionally at `revision`) and selects `"fp16"` **iff**
+      any filename contains `"fp16"` or `"float16"` (e.g., `*.fp16.safetensors`,
+      `*float16.bin`, etc.). Otherwise returns the empty string.
+    - Any other `dtype` raises `ValueError`.
+
+    Notes
+    -----
+    - Returning the empty string means “do not set a variant” when calling
+      `snapshot_download`; callers may choose to omit the `variant` kwarg in
+      that case.
+    - This is a filename-heuristic only. It does **not** guarantee that the
+      entire repo is organized by formal Hub variants. It simply detects common
+      half-precision naming patterns and maps them to `variant="fp16"`.
+    - `revision` (branch, tag, or commit) is forwarded to the file listing to
+      avoid scanning the default branch unintentionally.
+
+    Parameters
+    ----------
+    dtype : torch.dtype | None
+        Desired tensor precision (e.g., `torch.float32`, `torch.float16`,
+        `torch.bfloat16`). Required unless `variant_override` is provided.
+    model_id : str | None
+        Hub repository ID (e.g., `"org/model"`). Required unless
+        `variant_override` is provided.
+    revision : str | None
+        Optional Hub revision to inspect (branch, tag, or commit SHA).
+    local_files_only: bool
+        Only look in local HF cache (default), unless False
+    variant_override : str | None
+        If provided, short-circuits all logic and is returned verbatim
+        (useful for caching a previously chosen variant).
+
+    Returns
+    -------
+    str
+        `"fp16"` if a half-precision variant appears available (per heuristic);
+        otherwise the empty string.
+
+    Raises
+    ------
+    ValueError
+        If `variant_override` is None and either `dtype` or `model_id` is missing,
+        or if `dtype` is not one of {`torch.float32`, `torch.float16`, `torch.bfloat16`}.
+
+    Examples
+    --------
+    >>> variant = variant_guard(dtype=torch.float16, model_id="bigscience/bloom")
+    >>> kwargs = {} if not variant else {"variant": variant}
+    >>> local_dir = snapshot_download(
+    ...     repo_id="bigscience/bloom",
+    ...     revision="main",
+    ...     **kwargs,
+    ... )
+
+    >>> # Explicit override (skips dtype/model inspection):
+    >>> variant = variant_guard(variant_override="int8")
+    >>> snapshot_download("org/model", variant=variant)
+    """
     no_variant: str = ""
     if variant_override is not None:
         # Manual override, e.g., from prior call to this manager
@@ -556,17 +738,215 @@ def variant_guard(
         variant = no_variant
     elif dtype in (torch.float16, torch.bfloat16):
         # otherwise, half precision requested
-        # Heuristic: check for common fp16-variant filenames used by Diffusers/Transformers."""
-        # Note: repo_id is the same as model_id
-        api = HfApi()
-        files: Iterable[str] = api.list_repo_files(repo_id=model_id, revision=revision)
-        # Look for fp16.safetensors, float16.safetensors, fp16.bin or float16.bin suffixes in filename
-        has_fp16 = any(("fp16" in f) or ("float16" in f) for f in files)
+        # Prefer offline probe when requested
+        if local_files_only:
+            try:
+                # Probe whether an fp16 variant is cached locally
+                # Note: with local_files_only==True it does NOT download
+                #       it instead returns a string
+                snapshot_download(
+                    repo_id=model_id,
+                    revision=revision,
+                    allow_patterns=["*fp16*.safetensors", "*float16*.safetensors"],
+                    local_files_only=True,
+                )
+                has_fp16 = True
+            except LocalEntryNotFoundError:
+                has_fp16 = False
+                return no_variant
+        else:
+            # The very first time the model is cached, we must poll HF Hub
+            # Online heuristic: look for common fp16/float16 filenames
+            api = HfApi()
+            files: Iterable[str] = api.list_repo_files(repo_id=model_id, revision=revision)
+            has_fp16 = any(("fp16" in f) or ("float16" in f) for f in files)
         variant = "fp16" if has_fp16 else no_variant
     else:
         message = f"Invalid dtype provided: {dtype=}"
         raise ValueError(message)
     return variant
+
+
+@contextmanager
+def local_guard(*, local_files_only: bool = True) -> Generator[None, None, None]:
+    """Temporarily toggle Hugging Face *offline* mode via the HF_HUB_OFFLINE env var.
+
+    Use this guard around code that calls ``from_pretrained`` (or other Hub helpers)
+    when you want to **prevent unintended network access** and rely strictly on the
+    local cache.
+
+    Parameters
+    ----------
+    local_files_only : bool, default True
+        If True, sets ``HF_HUB_OFFLINE=1`` inside the context. If False, removes
+        the variable (allowing online access) for the duration.
+
+    Yields
+    ------
+    None
+        Context scope with the desired offline/online setting applied.
+
+    Notes
+    -----
+    - Some loaders accept ``local_files_only`` directly; this guard is useful for
+      libraries/utilities that *ignore* that kwarg but still respect the env var.
+    - The previous value of ``HF_HUB_OFFLINE`` (if any) is restored on exit.
+    """
+    old = os.environ.get("HF_HUB_OFFLINE")
+    try:
+        if local_files_only:
+            os.environ["HF_HUB_OFFLINE"] = "1"
+        else:
+            os.environ.pop("HF_HUB_OFFLINE", None)
+        yield
+    finally:
+        if old is None:
+            os.environ.pop("HF_HUB_OFFLINE", None)
+        else:
+            os.environ["HF_HUB_OFFLINE"] = old
+
+
+def load_guard(
+    *,
+    model_id: str,
+    loader_fn: Callable[..., Any] | None = None,
+    loader_args: tuple[Any, ...] | None = None,
+    loader_kwargs: dict[str, Any] | None = None,
+    only_export: bool = True,
+    force_refresh: bool = False,
+) -> object:
+    """Load a locally **exported** model by name, or (optionally) refresh that export.
+
+    This helper provides a simple, local-only cache for *assembled* models (e.g.,
+    Diffusers pipelines with adapters/LoRAs, or precision-converted weights).
+    Each model lives under an ``exports`` directory parallel to the standard
+    Hugging Face cache (e.g., ``~/.cache/huggingface/exports/...``).
+    Cache validity is determined by a **signature** over:
+    - the loader function's fingerprint (source/bytecode),
+    - the loader's positional/keyword arguments (excluding ``local_files_only``).
+
+    If a matching export exists, it is loaded directly. Otherwise—when allowed—
+    the export is rebuilt via ``loader_fn`` and re-saved alongside a new
+    ``metadata.json`` containing the signature.
+
+    Parameters
+    ----------
+    model_id : str
+        A **local** identifier for the assembled model. This does not need to
+        correspond to a Hub repo_id and is intended to avoid collisions with
+        third-party names.
+    loader_fn : Callable[..., Any] | None, optional
+        Function that builds and returns an HF object supporting
+        ``save_pretrained``. Required when creating or refreshing the export.
+    loader_args : tuple[Any, ...] | None, optional
+        Positional arguments passed to ``loader_fn`` when building/refreshing.
+    loader_kwargs : dict[str, Any] | None, optional
+        Keyword arguments passed to ``loader_fn`` when building/refreshing.
+        If present, ``variant`` (for Diffusers) is also used on load/save.
+        Any ``local_files_only`` entry is ignored for signature purposes.
+    only_export : bool, default True
+        If True, do **not** build/refresh; raise if the export is missing or stale.
+        If False, missing/stale exports will be rebuilt using ``loader_fn``.
+    force_refresh : bool, default False
+        Rebuild and overwrite the export regardless of the stored signature.
+        ``loader_fn`` must be provided.
+
+    Returns
+    -------
+    object
+        The loaded (or newly built) HF object. For Diffusers, this is typically a
+        ``DiffusionPipeline``; for Transformers, an ``AutoModel`` (or subclass).
+
+    Raises
+    ------
+    FileNotFoundError
+        When ``only_export=True`` and no valid export exists.
+    ValueError
+        When a refresh is needed but ``loader_fn`` is not provided; or when the
+        export does not look like a supported format (neither Diffusers nor Transformers).
+    huggingface_hub.utils.LocalEntryNotFoundError
+        Raised with a stricter message when an export is required but absent.
+
+    Notes
+    -----
+    - The export directory for ``model_id`` is computed under
+      ``hf_hub_cache_dir().parent / "exports"`` with a sanitized folder name.
+    - For Diffusers exports, the optional ``variant`` in ``loader_kwargs`` is
+      forwarded on load/save (e.g., ``"fp16"``). Most Transformers models do not
+      use ``variant``.
+    - This function does **not** manage online/offline behavior; wrap your calls
+      in ``local_guard(...)`` if you need to forbid network access.
+    - The stored signature is minimal by design and does *not* include external
+      state (e.g., environment, files on disk). If your loader depends on such
+      state, include it explicitly in ``loader_args``/``loader_kwargs``.
+    """
+    # ruff: noqa: PLR0913
+
+    loader_args = loader_args or ()
+    loader_kwargs = loader_kwargs or {}
+
+    # work in directory parallel to hub cache dir called exports
+    # typically .../huggingface/hub -> ../huggingface/exports
+    export_dir = hf_hub_cache_dir().parent / "exports" / repo_folder_name(repo_id=model_id, repo_type="model")
+
+    # get variant from loader_kwargs
+    variant = loader_kwargs.get("variant", "")
+
+    if loader_fn:
+        # since local_files_only mayb be in loader_kwargs, remove it here before checking metadata
+        # We may be wrapping a more generic loader
+        # But, don't mutate caller
+        loader_kwargs_filtered = {k: v for k, v in loader_kwargs.items() if k != "local_files_only"}
+
+        # expected metadata in export (if exists and fresh)
+        metadata_expected = {
+            "loader_fn_fingerprint": _loader_fingerprint(loader_fn),
+            "loader_args": loader_args,
+            "loader_kwargs_filtered": loader_kwargs_filtered,
+        }
+        signature_expected = hashlib.sha256(
+            json.dumps(metadata_expected, sort_keys=True, default=str).encode(),
+        ).hexdigest()
+
+        # check for existing export
+        metadata_path = export_dir / "metadata.json"
+        metadata_export = json.loads(metadata_path.read_text()) if metadata_path.exists() else None
+
+        # detect a match
+        match = (metadata_export is not None) and (metadata_export["signature"] == signature_expected)
+    else:
+        match = None
+
+    if not match or force_refresh:
+        # Either it doesn't match or we want to force a refresh
+        if only_export and not force_refresh:
+            # Raise exception if strict mode, unless force_refresh
+            message = f"exported model not found in cache {export_dir=}"
+            raise LocalEntryNotFoundError(message)
+        if not loader_fn:
+            message = "cannot refresh if no loader_fn provided"
+            raise ValueError(message)
+        # load model from huggingface hub, use original with local_files_only
+        model = loader_fn(str(export_dir), *loader_args, **loader_kwargs)
+        # Now ensure directory exists and is empty
+        if export_dir.exists():
+            shutil.rmtree(export_dir)
+        export_dir.mkdir(parents=True, exist_ok=True)
+        # Write to *export* cache, being sure to (1) use variant, (2) to also pass expected_metadata
+        save_kwargs = {"variant": variant} if isinstance(model, DiffusionPipeline) else {}
+        model.save_pretrained(export_dir, save_kwargs=save_kwargs)
+        (export_dir / "metadata.json").write_text(
+            json.dumps({"signature": signature_expected}, indent=2, sort_keys=True),
+        )
+
+    elif (export_dir / "model_index.json").exists():
+        model = DiffusionPipeline.from_pretrained(str(export_dir), variant=variant or None)
+    elif (export_dir / "config.json").exists():
+        model = AutoModel.from_pretrained(str(export_dir))
+    else:
+        message = "Unable to determine if huggingface transformers or diffusers"
+        raise ValueError(message)
+    return model
 
 
 @contextmanager
@@ -625,7 +1005,7 @@ def autocast_guard(
 
 
 @contextmanager
-def cache_guard(
+def vram_guard(
     *,
     device_list: list[torch.device],
     sanitize_cuda_errors: bool = True,
@@ -649,7 +1029,7 @@ def cache_guard(
             `detach_outputs=True`, else returns `x` unchanged. Use like:
 
     Usage:
-        with cache_guard(device_list=device_list, detach_outputs=True) as detach:
+        with vram_guard(device_list=device_list, detach_outputs=True) as detach:
             out = detach(run_model(...))
     """
     try:
@@ -668,7 +1048,7 @@ def cache_guard(
             torch.cuda.synchronize(dev)
     except Exception as e:
         # Sanitize and re-raise exception
-        logger.debug("Exception inside cache_guard guarded execution")
+        logger.debug("Exception inside vram_guard guarded execution")
         if sanitize_cuda_errors and is_cuda_error(e):
             # avoid references in traceback tying up VRAM
             detach_exception_tracebacks(e, deep=True)
@@ -676,7 +1056,7 @@ def cache_guard(
             raise RuntimeError(message) from None
         raise
     finally:
-        logger.debug("Performing cache_guard cleanup")
+        logger.debug("Performing vram_guard cleanup")
         sync_gc_and_cache_cleanup(
             do_sync=True,
             do_garbage_collect=True,
@@ -706,7 +1086,7 @@ def eval_guard(models: object, *, train_mode: bool = False) -> None:
 
 # ruff: ignore =
 @contextmanager
-def model_guard(  # noqa: PLR0913
+def model_guard(
     *,
     dtype: torch.dtype,
     need_grads: bool,
@@ -814,7 +1194,7 @@ def model_guard(  # noqa: PLR0913
     with (
         grad_guard(need_grads=need_grads),
         autocast_guard(dtype=effective_dtype),
-        cache_guard(
+        vram_guard(
             device_list=device_list,
             detach_outputs=detach_outputs,
             sanitize_cuda_errors=sanitize_cuda_errors,
