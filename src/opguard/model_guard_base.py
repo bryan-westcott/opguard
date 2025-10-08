@@ -20,6 +20,7 @@ Subclasses specialize loading/freeing and the call path for concrete models
 # ruff: noqa: ANN401  (this is an abstract base class)
 # ruff: noqa: ANN003 (this is an abstract base class)
 # ruff: noqa: ARG002 (this is an abstract base class)
+# ruff: noqa: TD002, TD003, FIX002
 
 # mypy: disable-error-code=override
 #   Why: this module specializes pipeline methods with narrower/extra kwargs.
@@ -35,8 +36,11 @@ from loguru import logger
 from .model_guard_util import (
     DeviceLike,
     DeviceMapLike,
+    cache_guard,
     device_guard,
     dtype_guard,
+    eval_guard,
+    local_guard,
     model_guard,
     sync_gc_and_cache_cleanup,
     variant_guard,
@@ -118,7 +122,7 @@ class ModelGuardBase(ABC):
         return self._postprocess(output_raw=output_raw)  # output_proc
 
     @abstractmethod
-    def _load_detector(self, **kwargs) -> Any:
+    def _load_detector(self, *, model_id_overrde: str | None = None, **kwargs) -> Any:
         """Return an initialized detector model, must be specialized."""
         raise NotImplementedError
 
@@ -135,7 +139,7 @@ class ModelGuardBase(ABC):
     def _predict(self, *, input_proc: Any, **kwargs) -> Any:
         """Call the detector, default is a simple call, may be overridden."""
         if not self._detector:
-            message = f"{type(self).__name__} must set _detector via _load_detector"
+            message = f"{self.classname} must set _detector via _load_detector"
             raise ValueError(message)
         return self._detector(input_proc, **kwargs)
 
@@ -223,7 +227,7 @@ class ModelGuardBase(ABC):
 
         self.variant: str = variant_guard(dtype=self.dtype, model_id=self.model_id, revision=self.revision)
 
-        logger.debug(f"Choices for {type(self).__name__}: {self.dtype=}, {self.variant=}")
+        logger.debug(f"Choices for {self.classname}: {self.dtype=}, {self.variant=}")
         self.keep_warm: bool = keep_warm
         self.sanitize_cuda_errors: bool = True
 
@@ -284,6 +288,11 @@ class ModelGuardBase(ABC):
         """Return whether gradients needed."""
         return type(self).NEED_GRADS
 
+    @property
+    def classname(self) -> str:
+        """Return name of class."""
+        return type(self).__name__
+
     def _load(self) -> None:
         """Load detector and processor (if applicable), unless already loaded."""
         # Always indicate potentially unfreed
@@ -291,20 +300,38 @@ class ModelGuardBase(ABC):
         # Now attemtp to load
         logger.debug("Loading models")
 
-        # reset to empty
-        if self.extra_info:
-            self.extra_info = {}
-        if not self._processor:
-            self._processor = self._load_processor()
-        if not self._detector:
-            self._detector = self._load_detector()
+        # TODO: add eval_guard, autocast guard
+        with local_guard(local_files_only=True) as local_files_only:
+            # reset to empty
+            if self.extra_info:
+                self.extra_info = {}
+            if not self._processor:
+                self._processor = self._load_processor()
+            if not self._detector:
+                loader_kwargs = {
+                    "model_id": self.model_id,
+                    "revision": self.revision,
+                    "device": self.device,
+                    "dtype": self.dtype,
+                    "variant": self.variant,
+                    "local_files_only": local_files_only,
+                }
+                with eval_guard(
+                    cache_guard(
+                        export_name=f"{self.name}-detector",
+                        loader_fn=self._load_detector,
+                        loader_kwargs=loader_kwargs,
+                    ),
+                ) as _detector:
+                    self._detector = _detector
+                # Note: replaces: self._detector = self._load_detector()
 
     def _free(self, *, clear_cache: bool = True, reason: str = "unspecified") -> None:
         """Free detector and processor (if applicable).
 
         Note: will also garbage collect and clear torch cache.
         """
-        logger.debug(f"Running free for {type(self).__name__}, reason: {reason}")
+        logger.debug(f"Running free for {self.classname}, reason: {reason}")
 
         # Don't free twice, unless models still loaded
         if self._is_freed and (not self._processor) and (not self._detector):

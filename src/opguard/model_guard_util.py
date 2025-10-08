@@ -30,13 +30,18 @@ Composite context manager:
 - model_guard: compose device/dtype/grad/AMP/cache guards, with optional multi-GPU support.
 
 Composable context managers:
-- device_guard: resolve a deterministic device list (from device or device_map).
-- dtype_guard: validate requested dtype (bf16→fp16 fallback if needed).
-- variant_guard: choose the Hub download variant (e.g., "fp16") from dtype/repo contents.
-- eval_guard: recursively set .eval() or .train() mode on all models provided.
-- grad_guard: toggle torch.set_grad_enabled / torch.inference_mode.
-- autocast_guard: scope torch.autocast for the chosen device/dtype to reduce compute/memory.
-- vram_guard: Prevent VRAM from getting pinned by stale tensors:
+- Initialization:
+    - device_guard: resolve a deterministic device list (from device or device_map).
+    - dtype_guard: validate requested dtype (bf16→fp16 fallback if needed).
+    - variant_guard: choose the Hub download variant (e.g., "fp16") from dtype/repo contents.
+- Model Loading:
+    - local_guard: ensure use of huggingface_hub is in local files only mode.
+    - eval_guard: recursively set .eval() or .train() mode on all models provided.
+    - cache_guard: cache previously prepared and cast models locally
+- Model Calling
+    - autocast_guard: scope torch.autocast for the chosen device/dtype to reduce compute/memory.
+    - grad_guard: toggle torch.set_grad_enabled / torch.inference_mode.
+    - vram_guard: Prevent VRAM from getting pinned by stale tensors:
                 sync streams, detach/move outputs off-GPU as needed, run GC,
                 and torch.cuda.empty_cache(); coalesce/surface CUDA errors deterministically.
 
@@ -46,11 +51,14 @@ Utility functions:
 - Device and device_map handling (normalization)
 """
 
+# ruff: noqa: TD002, TD003, FIX002
+
 from __future__ import annotations
 
 import ast
 import gc
 import hashlib
+import importlib
 import inspect
 import json
 import os
@@ -60,6 +68,7 @@ import textwrap
 import traceback
 from collections.abc import Callable, Generator, Iterator, Mapping
 from contextlib import contextmanager, suppress
+from datetime import datetime
 from functools import wraps
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeAlias
@@ -68,12 +77,10 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 import torch
-from diffusers import DiffusionPipeline
 from huggingface_hub import HfApi, snapshot_download
 from huggingface_hub.file_download import repo_folder_name
 from huggingface_hub.utils import LocalEntryNotFoundError
 from loguru import logger
-from transformers import AutoModel
 
 # ---------- type aliases (Py 3.11) ----------
 DeviceLike: TypeAlias = int | str | torch.device
@@ -520,10 +527,152 @@ def _loader_fingerprint(fn: Callable[..., object]) -> str:
             base_str = src_normalized
     except (OSError, TypeError):
         # source not available / builtins / C-extensions / dynamic objects
-        co = getattr(fn, "__code__", None)  # note: __code__, not "__coded__"
+        co = getattr(fn, "__func__", None)  # note: __code__, not "__coded__"
         base_str = repr(co)
 
     return hashlib.sha256(base_str.encode("utf-8")).hexdigest()
+
+
+def _normalize_arg(x: object) -> object:
+    """Normalize a Python value into a **JSON-serializable, deterministic** form.
+
+    Purpose
+    -------
+    Produce a stable, compact representation suitable for hashing and for storing
+    a human-readable snapshot of loader arguments.
+
+    Rules (in order)
+    ----------------
+    - Primitives (`str`, `int`, `float`, `bool`, `None`) are returned as-is.
+    - `pathlib.Path` → absolute, expanded string path.
+    - `dict` → keys coerced to `str`; values normalized recursively.
+    - `list`/`tuple` → each element normalized recursively (tuples become lists).
+    - PyTorch:
+        * `torch.dtype` → `str(dtype)` (e.g., ``"torch.float16"``)
+        * `torch.device` → `str(device)` (e.g., ``"cuda:0"``)
+        * `torch.Tensor` → summary dict with shape/dtype/device/requires_grad
+          (data is **not** embedded).
+    - Callables/classes → summary dict with module and (qual)name.
+    - Fallback → `repr(x)`.
+
+    Parameters
+    ----------
+    x : Any
+        Value to normalize.
+
+    Returns
+    -------
+    Any
+        A JSON-serializable structure (primitives, lists, dicts) that is stable
+        across runs for the same semantic input.
+
+    Notes
+    -----
+    - This is **one-way**; it is not intended for reconstruction of `x`.
+    - Extend this function if your project uses other non-JSON types that should
+      hash consistently (e.g., numpy dtypes/devices).
+    """
+    # ruff: noqa: PLR0911
+    if isinstance(x, (str, int, float, bool)) or x is None:
+        return x
+    if isinstance(x, Path):
+        return str(Path(x).expanduser().resolve())
+    if isinstance(x, dict):
+        return {str(k): _normalize_arg(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [_normalize_arg(v) for v in x]
+    # Torch dtypes/devices/tensors
+    if "torch" in type(x).__module__:
+        if isinstance(x, torch.dtype):
+            return str(x)  # e.g., "torch.float16"
+        if isinstance(x, torch.device):
+            return str(x)  # e.g., "cuda:0"
+        if isinstance(x, torch.Tensor):
+            # Don't embed data; summarize deterministically
+            return {
+                "__tensor__": True,
+                "shape": list(x.shape),
+                "dtype": str(x.dtype),
+                "device": str(x.device),
+                "requires_grad": bool(x.requires_grad),
+            }
+    # Functions/methods/classes
+    if inspect.isfunction(x) or inspect.ismethod(x) or inspect.isclass(x):
+        base = getattr(x, "__func__", x)  # normalize bound methods
+        return {
+            "__callable__": True,
+            "name": getattr(base, "__qualname__", getattr(base, "__name__", str(base))),
+            "module": getattr(base, "__module__", None),
+        }
+    # Fallback: stable repr
+    return repr(x)
+
+
+def _canonicalize_call(args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Canonicalize a `(args, kwargs)` call into a normalized JSON tree.
+
+    Behavior
+    --------
+    - Drops non-semantic flags that should not invalidate the cache
+      (currently: ``"local_files_only"``).
+    - Sorts keyword arguments by key for deterministic ordering.
+    - Applies :func:`_normalize_arg` recursively to all values.
+
+    Parameters
+    ----------
+    args : tuple
+        Positional arguments that will be passed to the loader.
+    kwargs : dict
+        Keyword arguments that will be passed to the loader.
+
+    Returns
+    -------
+    dict
+        ``{"args": [...], "kwargs": {...}}`` where both sides are normalized and
+        JSON-serializable.
+
+    Examples
+    --------
+    >>> _canonicalize_call((Path("~/data"),), {"variant": "fp16", "local_files_only": True})
+    {'args': ['/home/user/data'],
+     'kwargs': {'variant': 'fp16'}}
+    """
+    filtered_kwargs = {k: v for k, v in kwargs.items() if k != "local_files_only"}
+    return {
+        "args": [_normalize_arg(a) for a in args],
+        "kwargs": {k: _normalize_arg(v) for k, v in sorted(filtered_kwargs.items())},
+    }
+
+
+def _hash_canonical(obj: dict[str, Any]) -> str:
+    """Compute a deterministic SHA-256 hex digest of a normalized JSON tree.
+
+    Behavior
+    --------
+    - Serializes ``obj`` with ``json.dumps(sort_keys=True, separators=(',', ':'), ensure_ascii=False)``.
+    - Hashes the resulting UTF-8 bytes with SHA-256 and returns the hex digest.
+
+    Parameters
+    ----------
+    obj : dict
+        A JSON-serializable structure, typically the output of
+        :func:`_canonicalize_call` or a metadata dict built from normalized parts.
+
+    Returns
+    -------
+    str
+        A 64-character lowercase hex digest.
+
+    Notes
+    -----
+    - Stability depends on the **normalization** you apply before hashing; use
+      :func:`_normalize_arg` to avoid incidental diffs (e.g., differing `Path`
+      representations).
+    - This is not salted; identical inputs always produce identical digests,
+      which is desirable for cache keys.
+    """
+    payload = json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 # ---------- guards you can compose ----------
@@ -768,7 +917,7 @@ def variant_guard(
 
 
 @contextmanager
-def local_guard(*, local_files_only: bool = True) -> Generator[None, None, None]:
+def local_guard(*, local_files_only: bool = True) -> Generator[bool, None, None]:
     """Temporarily toggle Hugging Face *offline* mode via the HF_HUB_OFFLINE env var.
 
     Use this guard around code that calls ``from_pretrained`` (or other Hub helpers)
@@ -783,8 +932,8 @@ def local_guard(*, local_files_only: bool = True) -> Generator[None, None, None]
 
     Yields
     ------
-    None
-        Context scope with the desired offline/online setting applied.
+    bool
+        The `local_files_only` value in effect for this context.
 
     Notes
     -----
@@ -798,7 +947,7 @@ def local_guard(*, local_files_only: bool = True) -> Generator[None, None, None]
             os.environ["HF_HUB_OFFLINE"] = "1"
         else:
             os.environ.pop("HF_HUB_OFFLINE", None)
-        yield
+        yield local_files_only
     finally:
         if old is None:
             os.environ.pop("HF_HUB_OFFLINE", None)
@@ -806,13 +955,193 @@ def local_guard(*, local_files_only: bool = True) -> Generator[None, None, None]
             os.environ["HF_HUB_OFFLINE"] = old
 
 
-def load_guard(
+def _cache_signature(
     *,
-    model_id: str,
-    loader_fn: Callable[..., Any] | None = None,
-    loader_args: tuple[Any, ...] | None = None,
-    loader_kwargs: dict[str, Any] | None = None,
-    only_export: bool = True,
+    export_name: str | None,
+    loader_fn: Callable[..., Any],
+    loader_kwargs: dict[str, Any],
+) -> tuple[str | None, dict[str, Any] | None]:
+    """Compute signature and associated metadata based on laoder, name and arguments."""
+    # Lack of export name prevents local export
+    if not export_name:
+        return None, None
+
+    if loader_fn is None:
+        message = "loader_fn must be provided as a callable"
+        raise ValueError(message)
+
+    # Which kwargs are used to detect changes
+    # Note: do not copy local_files_only, that may change in this gurad
+    loader_kwargs_filtered: dict[str, Any] = {}
+    signature_kwargs = ("model_id", "device", "dtype", "variant")
+    for kwarg in signature_kwargs:
+        if (kwarg not in loader_kwargs) or (loader_kwargs[kwarg] is None):
+            message = "Missing or None for kwarg: " + kwarg + " in loader_kwargs, use '' for no variant"
+            raise ValueError(message)
+        loader_kwargs_filtered[kwarg] = loader_kwargs[kwarg]
+
+    # Noirmalize call args/kwargs
+    call_norm: dict[str, Any] = _canonicalize_call(args=(), kwargs=loader_kwargs_filtered)
+    # Hash for matching
+    call_hash: str = _hash_canonical(call_norm)
+
+    # construct signature
+    signature_metadata: dict[str, Any] = {
+        "name": export_name,
+        "loader_fn_fingerprint": _loader_fingerprint(loader_fn),
+        "loader_call_hash": call_hash,
+    }
+    # compute expected signature
+    signature_expected = hashlib.sha256(
+        json.dumps(
+            signature_metadata,
+            sort_keys=True,
+            default=str,
+        ).encode(),
+    ).hexdigest()
+
+    # Put normalized call in for debugging, but match on signature
+    signature_metadata["loader_call"] = call_norm
+    signature_metadata["dtype"] = str(loader_kwargs_filtered["dtype"])
+    signature_metadata["variant"] = loader_kwargs_filtered["variant"]
+
+    return signature_expected, signature_metadata
+
+
+def _cache_match(
+    *,
+    export_dir: Path,
+    export_name: str | None,
+    signature_expected: str | None,
+    only_export: bool,
+) -> bool:
+    """Check for existing local export that matches expected signature."""
+    # Lack of export name prevents local export
+    if not export_name:
+        logger.warning("Bypassing load_guard import due to no export_name")
+        if only_export:
+            message = "Must provide export_name to enforce only_export==True"
+            raise ValueError(message)
+
+    # Check for existing match
+    match = False
+    if export_name:
+        if not signature_expected:
+            message = "Cannot match prior export without signature."
+            raise ValueError(message)
+        # check for existing export
+        metadata_path = export_dir / "metadata.json"
+        prior_metadata = json.loads(metadata_path.read_text()) if metadata_path.exists() else None
+
+        # detect a match
+        match = (prior_metadata is not None) and (prior_metadata["signature"] == signature_expected)
+
+    return match
+
+
+def _cache_import_kwargs(
+    *,
+    loader_kwargs: dict[str, Any],
+    export_dir: Path | None,
+    match: bool,
+    only_export: bool,
+    force_refresh: bool,
+) -> dict[str, Any]:
+    """Compute kwargs to provide to loader to use local export, if applicable."""
+    # work with a copy
+    loader_kwargs = {**loader_kwargs}
+    # determine which to use
+    if match and not force_refresh:
+        if not export_dir:
+            message = "Must provide export_dir when loading from export."
+            raise ValueError(message)
+        # provide the export dir in place of huggingface hub model id
+        loader_kwargs["model_id"] = str(export_dir.resolve())
+        loader_kwargs["local_files_only"] = True
+    # Either it doesn't match or we want to force a refresh
+    elif only_export and not force_refresh:
+        # Raise exception if strict mode, unless force_refresh
+        message = f"exported model not found in cache {export_dir=}"
+        raise LocalEntryNotFoundError(message)
+    return loader_kwargs
+
+
+def _cache_export(
+    *,
+    model: object,
+    signature_metadata: dict[str, Any] | None,
+    signature: str | None,
+    export_dir: Path,
+    export_name: str | None,
+    match: bool,
+    force_refresh: bool,
+) -> None:
+    """Export the model to local export, if applicable."""
+    if not export_name:
+        logger.warning("Bypassing load_guard export due to no export_name")
+        if force_refresh:
+            message = "Must provide export_name to use force_refresh==True"
+            raise ValueError(message)
+
+    # No attempt to re-export it
+    if export_name and (not match or force_refresh):
+        if not signature_metadata or not signature:
+            message = "Cannot export without signature metadata and signature"
+            raise ValueError(message)
+        # Sanity check
+        model_dtype = getattr(model, "dtype", None)
+        if model_dtype and str(model_dtype) != signature_metadata["dtype"]:
+            message = "Unexpected mismatch of signature dtype and model dtype"
+            raise ValueError(message)
+
+        # Get time
+        now = datetime.now().astimezone()
+        created_at = now.isoformat(timespec="seconds")
+        created_at_pretty = now.strftime("%a, %b %d, %Y %I:%M %p %Z (%z)")
+        created_at_unix = int(now.timestamp())
+        # Get module, model_class, base module
+        module = getattr(model.__class__, "__module__", "None")
+        model_class = getattr(model.__class__, "__name__", "None")
+        base_module = module.split(".")[0]
+        base_module_version = getattr(importlib.import_module(base_module), "__version__", "None")
+        torch_version = getattr(torch, "__version__", "None")
+        # Write to *export* cache, being sure to (1) use variant, (2) to also pass expected_metadata
+        # Note: dtype, variant and name all in signature_metadata
+        metadata = signature_metadata | {
+            "signature": signature,
+            "module": module,
+            "model_class": model_class,
+            "base_module": base_module,
+            "base_module_version": base_module_version,
+            "torch_version": torch_version,
+            "created_at": created_at,
+            "created_at_pretty": created_at_pretty,
+            "created_at_unix": created_at_unix,
+        }
+        # Add variant if appropriate
+        save_kwargs: dict[str, Any] = {}
+        if (base_module == "diffusers") and ("variant" in metadata):
+            save_kwargs = {"variant": metadata["variant"]}
+        # Now ensure directory exists and is empty
+        if export_dir.exists():
+            shutil.rmtree(export_dir)
+        export_dir.mkdir(parents=True, exist_ok=True)
+        # save and export metadata
+        if not hasattr(model, "save_pretrained"):
+            message = "Model provided has no save_pretrained method"
+            raise ValueError(message)
+        model.save_pretrained(export_dir, save_kwargs=save_kwargs)
+        (export_dir / "metadata.json").write_text(
+            json.dumps(metadata, indent=2, sort_keys=False),
+        )
+
+
+def cache_guard(
+    *,
+    loader_fn: Callable[..., Any],
+    loader_kwargs: dict[str, Any],
+    export_name: str | None = None,
+    only_export: bool = False,
     force_refresh: bool = False,
 ) -> object:
     """Load a locally **exported** model by name, or (optionally) refresh that export.
@@ -831,19 +1160,19 @@ def load_guard(
 
     Parameters
     ----------
-    model_id : str
+    loader_fn : Callable[..., Any]
+        Function that builds and returns an HF object supporting
+        ``save_pretrained``.
+    loader_kwargs : dict[str, Any]
+        Must provide: 'model_id', 'dtype', 'device', 'variant', 'local_files_only'
+        For no variant: use "" not None
+        Note: if positional args needed in laoder, use them from kwargs
+    export_name : str | None
+        If None, then no import/export will occur (just huggingface_hub which,
+        may or may not be cached locally).
         A **local** identifier for the assembled model. This does not need to
         correspond to a Hub repo_id and is intended to avoid collisions with
         third-party names.
-    loader_fn : Callable[..., Any] | None, optional
-        Function that builds and returns an HF object supporting
-        ``save_pretrained``. Required when creating or refreshing the export.
-    loader_args : tuple[Any, ...] | None, optional
-        Positional arguments passed to ``loader_fn`` when building/refreshing.
-    loader_kwargs : dict[str, Any] | None, optional
-        Keyword arguments passed to ``loader_fn`` when building/refreshing.
-        If present, ``variant`` (for Diffusers) is also used on load/save.
-        Any ``local_files_only`` entry is ignored for signature purposes.
     only_export : bool, default True
         If True, do **not** build/refresh; raise if the export is missing or stale.
         If False, missing/stale exports will be rebuilt using ``loader_fn``.
@@ -882,70 +1211,61 @@ def load_guard(
     """
     # ruff: noqa: PLR0913
 
-    loader_args = loader_args or ()
+    # TODO: log module and model_type in metadata
+    # TODO: ensure eval_guard is applied
+    # TODO: make a loader_guard
+    # TODO: export everythign to fast_loader function or function args
+    # TODO: check GPU ids for all device_list for match!
+
     loader_kwargs = loader_kwargs or {}
 
+    # Choose a variant.
+    # Even though diffusers only supports variant in from_pretrained, we
+    #      will still export specialized versions here.
+    if export_name:
+        # Variant in cache mode depends only on dtype, not what is in HF hub
+        if loader_kwargs["dtype"] in (torch.float16, torch.bfloat16):
+            loader_kwargs["variant"] = "fp16"
+            export_name += "-" + loader_kwargs["variant"]
+        else:
+            loader_kwargs["variant"] = ""
+
     # work in directory parallel to hub cache dir called exports
-    # typically .../huggingface/hub -> ../huggingface/exports
-    export_dir = hf_hub_cache_dir().parent / "exports" / repo_folder_name(repo_id=model_id, repo_type="model")
-
-    # get variant from loader_kwargs
-    variant = loader_kwargs.get("variant", "")
-
-    if loader_fn:
-        # since local_files_only mayb be in loader_kwargs, remove it here before checking metadata
-        # We may be wrapping a more generic loader
-        # But, don't mutate caller
-        loader_kwargs_filtered = {k: v for k, v in loader_kwargs.items() if k != "local_files_only"}
-
-        # expected metadata in export (if exists and fresh)
-        metadata_expected = {
-            "loader_fn_fingerprint": _loader_fingerprint(loader_fn),
-            "loader_args": loader_args,
-            "loader_kwargs_filtered": loader_kwargs_filtered,
-        }
-        signature_expected = hashlib.sha256(
-            json.dumps(metadata_expected, sort_keys=True, default=str).encode(),
-        ).hexdigest()
-
-        # check for existing export
-        metadata_path = export_dir / "metadata.json"
-        metadata_export = json.loads(metadata_path.read_text()) if metadata_path.exists() else None
-
-        # detect a match
-        match = (metadata_export is not None) and (metadata_export["signature"] == signature_expected)
-    else:
-        match = None
-
-    if not match or force_refresh:
-        # Either it doesn't match or we want to force a refresh
-        if only_export and not force_refresh:
-            # Raise exception if strict mode, unless force_refresh
-            message = f"exported model not found in cache {export_dir=}"
-            raise LocalEntryNotFoundError(message)
-        if not loader_fn:
-            message = "cannot refresh if no loader_fn provided"
-            raise ValueError(message)
-        # load model from huggingface hub, use original with local_files_only
-        model = loader_fn(str(export_dir), *loader_args, **loader_kwargs)
-        # Now ensure directory exists and is empty
-        if export_dir.exists():
-            shutil.rmtree(export_dir)
-        export_dir.mkdir(parents=True, exist_ok=True)
-        # Write to *export* cache, being sure to (1) use variant, (2) to also pass expected_metadata
-        save_kwargs = {"variant": variant} if isinstance(model, DiffusionPipeline) else {}
-        model.save_pretrained(export_dir, save_kwargs=save_kwargs)
-        (export_dir / "metadata.json").write_text(
-            json.dumps({"signature": signature_expected}, indent=2, sort_keys=True),
-        )
-
-    elif (export_dir / "model_index.json").exists():
-        model = DiffusionPipeline.from_pretrained(str(export_dir), variant=variant or None)
-    elif (export_dir / "config.json").exists():
-        model = AutoModel.from_pretrained(str(export_dir))
-    else:
-        message = "Unable to determine if huggingface transformers or diffusers"
-        raise ValueError(message)
+    #   typically: .../huggingface/hub -> ../huggingface/exports
+    export_dir = hf_hub_cache_dir().parent / "exports" / repo_folder_name(repo_id=export_name, repo_type="model")
+    # compute signature and associated metadata used to craete it
+    signature_expected, signature_metadata = _cache_signature(
+        export_name=export_name,
+        loader_fn=loader_fn,
+        loader_kwargs=loader_kwargs,
+    )
+    # check for existing export
+    match = _cache_match(
+        export_name=export_name,
+        export_dir=export_dir,
+        signature_expected=signature_expected,
+        only_export=only_export,
+    )
+    # Load model, using local export if applicable
+    override_loader_kwargs = _cache_import_kwargs(
+        loader_kwargs=loader_kwargs,
+        export_dir=export_dir,
+        match=match,
+        only_export=only_export,
+        force_refresh=force_refresh,
+    )
+    # Load the model with same loader either way
+    model = loader_fn(**override_loader_kwargs)
+    # Export the model, if applicable
+    _cache_export(
+        model=model,
+        signature_metadata=signature_metadata,
+        signature=signature_expected,
+        export_name=export_name,
+        export_dir=export_dir,
+        match=match,
+        force_refresh=force_refresh,
+    )
     return model
 
 
@@ -1066,22 +1386,70 @@ def vram_guard(
         )
 
 
-def eval_guard(models: object, *, train_mode: bool = False) -> None:
-    """Recursively set evaluation mode on all models contained in `models`.
+@contextmanager
+def eval_guard(models: object, *, train_mode: bool = False) -> Generator[object, None, None]:
+    """Set train/eval mode across `models`, yield the same reference, no exit restore.
 
-    - Calls `train(False)` (equivalent to `eval()`) on any object that defines it.
-    - Traverses common containers (dict, list, tuple, set) and applies in place.
-    - Does *not* affect gradient computation; pair with `torch.no_grad()` or your
-      own grad context for inference.
+    This helper supports two common use cases:
 
-    This function is one-way (no restoration). Use a context manager if you need
-    to save and restore prior training modes.
+    1) Load-time chaining (one-shot set + assignment)
+       Use when constructing a model and you want it left in eval() for reuse.
+       Because this guard does not restore, the mode remains in effect after the
+       `with` block.
+
+       Example
+       -------
+       with eval_guard(call_guard(loader_fn, ...)) as m:
+           self.model = m
+
+       # or bind directly (attribute target is valid in `as`):
+       with eval_guard(call_guard(loader_fn, ...)) as self.model:
+           pass  # model is now in eval() and kept that way
+
+    2) Call-time wrapping (apply mode before a call)
+       Use around a single inference call. Since there is no restoration, the
+       model stays in the chosen mode after the block. Pair with
+       `torch.inference_mode()` or `torch.no_grad()` as needed.
+
+       Example
+       -------
+       with eval_guard(self.model):             # sets eval()
+           with torch.inference_mode():
+               out = self.model(inputs)
+
+       # For training loops, request train() explicitly:
+       with eval_guard(self.model, train_mode=True):
+           loss = self.model(batch)  # stays in train() afterwards
+
+    Parameters
+    ----------
+    models : object
+        A single model or a nested structure (dict/list/tuple/set) containing
+        objects that implement `.train(bool)`. `torch.nn.Module` trees are handled.
+    train_mode : bool, default False
+        If False, applies `train(False)` (equivalent to `eval()`).
+        If True, applies `train(True)`.
+
+    Yields
+    ------
+    object
+        The same `models` reference for convenient assignment/chaining.
+
+    Notes
+    -----
+    - This guard is intentionally one-way: it does **not** restore prior modes.
+      If you need restoration, implement a separate context manager.
+    - This does not affect autograd; wrap inference in `torch.inference_mode()`
+      or `torch.no_grad()` for best performance and safety.
     """
     # Prefer the boolean API (propagates to children) and keep it strict.
     _call_attr_recursive(models, "train", train_mode)
+    yield models  # no restore, no cleanup
 
 
 # ---------- composed model_guard ----------
+
+# TODO: make this a call_guard
 
 
 # ruff: ignore =
@@ -1187,11 +1555,11 @@ def model_guard(
         revision=revision,
         variant_override=variant_override,
     )
-    eval_guard(
-        models=models,
-        train_mode=train_mode,
-    )
     with (
+        eval_guard(
+            models=models,
+            train_mode=train_mode,
+        ) as _,
         grad_guard(need_grads=need_grads),
         autocast_guard(dtype=effective_dtype),
         vram_guard(

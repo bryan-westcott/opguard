@@ -1,5 +1,10 @@
 """Smoke tests for ModelGuard exercising CPU, GPU, and BFloat modes."""
 
+# We do not care about LSP substitutability, ModelGuardBase is not used directly
+# mypy: disable-error-code=override
+
+# ruff: noqa: PLR0913  (intentionally explicit about all loader options)
+
 import torch
 from diffusers import AutoencoderTiny
 from loguru import logger
@@ -16,16 +21,23 @@ class Smoke(ModelGuardBase):
     DEFAULT_DEVICE = "cpu"
     DEFAULT_DTYPE = torch.float32
 
-    def _load_detector(self) -> AutoencoderTiny:
-        return (
-            AutoencoderTiny.from_pretrained(
-                self.model_id,
-                torch_dtype=self.dtype,
-                local_files_only=False,
-            )
-            .to(self.device)
-            .eval()
-        )
+    def _load_detector(
+        self,
+        *,
+        model_id: str,
+        device: torch.device,
+        dtype: torch.dtype,
+        local_files_only: bool,
+        revision: str,
+        variant: str,
+    ) -> AutoencoderTiny:
+        _ = variant  # accepted but unused on purpose
+        return AutoencoderTiny.from_pretrained(
+            model_id,
+            torch_dtype=dtype,
+            local_files_only=local_files_only,
+            revision=revision,
+        ).to(device)
 
     def _encode(self, *, image: torch.FloatTensor) -> torch.FloatTensor:
         """Encode image.
