@@ -660,7 +660,7 @@ def _normalize_arg(x: object) -> object:
     return repr(x)
 
 
-def _canonicalize_call(args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+def _canonicalize_call(*, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
     """Canonicalize a `(args, kwargs)` call into a normalized JSON tree.
 
     Behavior
