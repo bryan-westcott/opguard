@@ -14,13 +14,45 @@ When run persistently, it can optionally:
     * lazy load model on call
     * aggressively free after call
 
+For an example of how simple specialization can be, see
+    the smoke test Smoke class in smoke.py
+
 Subclasses specialize loading/freeing and the call path for concrete models
+
+Minimal example: this will apply all the guards (with default options)
+
+>>> import torch
+>>> from diffusers import AutoencoderTiny
+>>> from model_guard import ModelGuardBase
+>>> class TinyVae(ModelGuardBase):
+...     NAME = "tiny-vae"
+...     MODEL_ID = "madebyollin/taesd"
+...     REVISION = "main"
+...
+...     def _load_detector(self, **kwargs: dict[str, Any]) -> AutoencoderTiny:
+...         return AutoencoderTiny.from_pretrained(
+...             kwargs["model_id"],
+...             torch_dtype=kwargs["dtype"],
+...             local_files_only=kwargs["local_files_only"],
+...             revision=kwargs["revision"],
+...         ).to(kwargs["device"])
+...
+...     def _encode(self, *, image: torch.FloatTensor) -> torch.FloatTensor:
+...         return self._detector.encode(image.to(self.device, self.dtype)).latents
+...
+...     def _decode(self, *, latent: torch.FloatTensor) -> torch.FloatTensor:
+...         return self._detector.decode(latent.to(self.device, self.dtype)).sample
+...
+...     def _predict(self, *, input_proc: torch.FloatTensor) -> torch.FloatTensor:
+...         return self._decode(latent=self._encode(image=input_proc))
+>>> with TinyVae() as vae:
+...     input_tensor = torch.rand((2, 3, 512, 512), device=vae.device, dtype=vae.dtype) * 2 - 1
+...     assert vae(input_raw=input_tensor).shape == input_tensor.shape
 """
 
 # ruff: noqa: ANN401  (this is an abstract base class)
 # ruff: noqa: ANN003 (this is an abstract base class)
 # ruff: noqa: ARG002 (this is an abstract base class)
-# ruff: noqa: TD002, TD003, FIX002
 
 # mypy: disable-error-code=override
 #   Why: this module specializes pipeline methods with narrower/extra kwargs.
@@ -36,14 +68,10 @@ from loguru import logger
 from .model_guard_util import (
     DeviceLike,
     DeviceMapLike,
-    cache_guard,
-    device_guard,
-    dtype_guard,
-    eval_guard,
-    local_guard,
-    model_guard,
-    sync_gc_and_cache_cleanup,
-    variant_guard,
+    call_guard,
+    free_guard,
+    init_guard,
+    load_guard,
 )
 
 
@@ -158,6 +186,10 @@ class ModelGuardBase(ABC):
         device_map_override: DeviceMapLike | None = None,
         keep_warm: bool = False,
         sanitize_cuda_errors: bool = True,
+        local_hfhub_variant_check_only: bool = False,
+        local_files_only: bool = False,
+        only_load_export: bool = False,
+        force_export_refresh: bool = False,
     ) -> None:
         """Initialize the model guard and resolve device list and effective dtype.
 
@@ -183,30 +215,15 @@ class ModelGuardBase(ABC):
                 If True, suspected CUDA `RuntimeError`s during guarded calls are
                 sanitized (tracebacks detached, devices synchronized, concise
                 error re-raised).
-
-        Sets:
-            self.device:
-                The chosen device spec (override or `DEFAULT_DEVICE`).
-            self.device_map:
-                The chosen device-map spec (override or `DEFAULT_DEVICE_MAP`).
-            self.device_list:
-                Normalized CUDA devices resolved by `device_guard(...)`.
-            self.dtype_preference:
-                The requested dtype (override or `DTYPE_PREFERENCE`).
-            self.dtype:
-                Effective dtype after validation/fallback by `dtype_guard(...)`.
-            self.keep_warm:
-                Stored flag controlling eager/lazy lifecycle.
-            self.sanitize_cuda_errors:
-                Stored flag controlling CUDA error sanitization.
-            self._in_context:
-                Internal flag indicating context-manager scope.
-            self._is_freed:
-                Internal flag indicating whether shutdown free has completed.
-            self._processor, self._detector:
-                Lazy-loaded model/processors (subclasses populate).
-            self.extra_info:
-                Dict for subclass/config metadata.
+            local_hfhub_variant_check_only:
+                only look local cache when checking hfhub for variants
+            local_files_only:
+                only load models from local cache or export
+            only_load_export:
+                only load model from local export (not the same as
+                huggingfacehub cache, see cache_guard)
+            force_export_refresh:
+                force a refresh of the local export
 
         Notes:
             - No heavy CUDA allocation happens here beyond device/dtype resolution.
@@ -216,18 +233,30 @@ class ModelGuardBase(ABC):
                   with MyGuard(...) as g:
                       out = g(input_raw=...)
         """
-        # Set device_list, but keep original device and device_map chosen
+        # A placeholder for overriding MODEL_ID without mutating class
+        self._model_id_override: str | None = None
+
+        # ruff: noqa: PLR0913  (base class with lots of configurability)
+        # keep track of inputs/preferences
         self.device: DeviceLike = device_override or type(self).DEFAULT_DEVICE
         self.device_map: DeviceMapLike = device_map_override or type(self).DEFAULT_DEVICE_MAP
-        self.device_list: list[torch.device] = device_guard(device=self.device, device_map=self.device_map)
-
-        # Choose dtype
         self.dtype_preference: torch.dtype = dtype_override or type(self).DTYPE_PREFERENCE
-        self.dtype: torch.dtype = dtype_guard(device_list=self.device_list, dtype_desired=self.dtype_preference)
-
-        self.variant: str = variant_guard(dtype=self.dtype, model_id=self.model_id, revision=self.revision)
-
+        # initialize dtype, variant, device_list based on runtime hardware
+        self.device_list, self.dtype, self.variant = init_guard(
+            device=self.device,
+            device_map=self.device_map,
+            dtype=self.dtype_preference,
+            model_id=self.model_id,
+            revision=self.revision,
+            local_hfhub_variant_check_only=local_hfhub_variant_check_only,
+        )
         logger.debug(f"Choices for {self.classname}: {self.dtype=}, {self.variant=}")
+
+        # loader-related params
+        self.local_files_only: bool = local_files_only
+        self.only_load_export: bool = only_load_export
+        self.force_export_refresh: bool = force_export_refresh
+        # caller related ptions
         self.keep_warm: bool = keep_warm
         self.sanitize_cuda_errors: bool = True
 
@@ -275,8 +304,17 @@ class ModelGuardBase(ABC):
 
     @property
     def model_id(self) -> str:
-        """Return the Huggingface ID for the core model weights."""
-        return type(self).MODEL_ID
+        """Return the Huggingface ID for the core model weights.
+
+        Note: from type(self).MODEL_ID unles self._model_id_override not None.
+        """
+        # Note: may b
+        return self._model_id_override if self._model_id_override else type(self).MODEL_ID
+
+    @model_id.setter
+    def model_id(self, value: str) -> None:
+        """Model id setter, to _model_id_override witout class muatation."""
+        self._model_id_override = value
 
     @property
     def revision(self) -> str:
@@ -300,31 +338,22 @@ class ModelGuardBase(ABC):
         # Now attemtp to load
         logger.debug("Loading models")
 
-        # TODO: add eval_guard, autocast guard
-        with local_guard(local_files_only=True) as local_files_only:
-            # reset to empty
-            if self.extra_info:
-                self.extra_info = {}
-            if not self._processor:
-                self._processor = self._load_processor()
-            if not self._detector:
-                loader_kwargs = {
-                    "model_id": self.model_id,
-                    "revision": self.revision,
-                    "device": self.device,
-                    "dtype": self.dtype,
-                    "variant": self.variant,
-                    "local_files_only": local_files_only,
-                }
-                with eval_guard(
-                    cache_guard(
-                        export_name=f"{self.name}-detector",
-                        loader_fn=self._load_detector,
-                        loader_kwargs=loader_kwargs,
-                    ),
-                ) as _detector:
-                    self._detector = _detector
-                # Note: replaces: self._detector = self._load_detector()
+        # reset to empty
+        if self.extra_info:
+            self.extra_info = {}
+        if not self._processor:
+            # Note: for now load guard is only applied to detector
+            self._processor = self._load_processor()
+        if not self._detector:
+            self._detector = load_guard(
+                local_files_only=self.local_files_only,
+                train_mode=False,
+                loader_fn=self._load_detector,
+                loader_kwargs=None,
+                export_name=f"{self.name}-detector",
+                only_load_export=self.only_load_export,
+                force_export_refresh=self.force_export_refresh,
+            )
 
     def _free(self, *, clear_cache: bool = True, reason: str = "unspecified") -> None:
         """Free detector and processor (if applicable).
@@ -338,32 +367,15 @@ class ModelGuardBase(ABC):
             logger.debug("Already freed, exiting early from _free()")
             return
 
-        # free detector and processor, if allocated
-        if self._detector:
-            self._detector = None
-        if self._processor:
-            self._processor = None
-        # reset to empty
-        if self.extra_info:
-            self.extra_info = {}
-
-        # Note: gc and cache clear recommended since
-        # models themselves are not freed inside model_guard
-        if not clear_cache:
-            logger.debug("Free complete (skipping sync, garbage collection, and torch cache empty)")
-            return
-
-        # Apply GC and cache clear as we just freed up the models
-        # Note: suppress errors as this is best-effort VRAM freeup
-        #       and we already handled RuntimeErrors inside model_guard
-        # Note: must sync and gc to get proper cache clear
-        sync_gc_and_cache_cleanup(
-            do_sync=True,
-            do_garbage_collect=True,
-            do_empty_cache=True,
-            suppress_errors=True,
-            device_list=self.device_list,
-        )
+        with free_guard(device_list=self.device_list, run_gc_and_clear_cache=clear_cache):
+            # free detector and processor, if allocated
+            if self._detector:
+                self._detector = None
+            if self._processor:
+                self._processor = None
+            # reset to empty
+            if self.extra_info:
+                self.extra_info = {}
 
         # Indicate already freed
         logger.debug("Free complete (including sync, garbage collection, and torch cache empty)")
@@ -398,19 +410,15 @@ class ModelGuardBase(ABC):
                 self._load()
             # Autocast for proper precision, accounting for gradient needs, also stream synchronize
             # Note: dtype and device guard are already pre-checked in init
-            with model_guard(
-                dtype=self.dtype,
+            with call_guard(
                 need_grads=self.need_grads,
-                device=self.device,
-                device_map=self.device_map,
                 sanitize_cuda_errors=self.sanitize_cuda_errors,
-                call=self._caller,
+                caller_fn=self._caller,
+                effective_dtype=self.dtype,
+                device_list=self.device_list,
                 models=(self._processor, self._detector),
                 train_mode=False,
-                device_list_override=self.device_list,  # previously computed, so override
-                dtype_override=self.dtype,  # previously computed, so override
-                variant_override=self.variant,  # previously computed, so override (no model_id/revision needed)
-            ) as (_device_list, _effective_dtype, guarded_call):
+            ) as guarded_call:
                 # Note: cache_guard will handle detaching outptu and tracebacks
                 return guarded_call(input_raw=input_raw, **kwargs)
         finally:

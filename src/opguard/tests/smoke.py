@@ -1,14 +1,14 @@
-"""Smoke tests for ModelGuard exercising CPU, GPU, and BFloat modes."""
+"""Smoke tests for ModelGuard exercising CPU, GPU, and BFloat modes.
+
+To run, with debugging:     uv run pytest --log-cli-level=DEBUG --capture=no
+"""
 
 # We do not care about LSP substitutability, ModelGuardBase is not used directly
 # mypy: disable-error-code=override
 
-# ruff: noqa: PLR0913  (intentionally explicit about all loader options)
-
 import torch
 from diffusers import AutoencoderTiny
 from loguru import logger
-
 from opguard import ModelGuardBase
 
 
@@ -21,23 +21,14 @@ class Smoke(ModelGuardBase):
     DEFAULT_DEVICE = "cpu"
     DEFAULT_DTYPE = torch.float32
 
-    def _load_detector(
-        self,
-        *,
-        model_id: str,
-        device: torch.device,
-        dtype: torch.dtype,
-        local_files_only: bool,
-        revision: str,
-        variant: str,
-    ) -> AutoencoderTiny:
-        _ = variant  # accepted but unused on purpose
+    def _load_detector(self, **kwargs: object) -> AutoencoderTiny:
+        # ruff: noqa: ARG002
         return AutoencoderTiny.from_pretrained(
-            model_id,
-            torch_dtype=dtype,
-            local_files_only=local_files_only,
-            revision=revision,
-        ).to(device)
+            self.model_id,
+            torch_dtype=self.dtype,
+            local_files_only=self.local_files_only,
+            revision=self.revision,
+        ).to(self.device)
 
     def _encode(self, *, image: torch.FloatTensor) -> torch.FloatTensor:
         """Encode image.
@@ -85,26 +76,37 @@ class Smoke(ModelGuardBase):
         return self._decode(latent=self._encode(image=input_proc))
 
 
-def _tiny_vae_roundtrip(device: str, dtype: torch.device) -> None:
+def _tiny_vae_roundtrip(*, device: str | torch.device, dtype: torch.dtype, **kwargs) -> None:
     """Tiny round-trip VAE that exercises ModelGuardBase with various device/dtypes."""
+    # ruff: noqa: ANN003  (too restrictive on tests)
     batch: int = 2
-    with Smoke(device_override=device, dtype_override=dtype) as smoke:
+    logger.info(f"Running smoke test with {device=}, {dtype=}, {kwargs=}")
+    with Smoke(device_override=device, dtype_override=dtype, **kwargs) as smoke:
         size = (batch, 3, 512, 512)
         input_tensor: torch.FloatTensor = torch.rand(size=size, device=smoke.device, dtype=smoke.dtype) * 2 - 1
-        logger.info(f"{smoke.device=}, {smoke.dtype=}, {input_tensor.dtype}")
         output_tensor: torch.FloatTensor = smoke(input_raw=input_tensor)
 
     assert input_tensor.shape == output_tensor.shape
 
 
+def _tiny_vae_roundtrip_sequence(*, device: str | torch.device, dtype: torch.dtype) -> None:
+    """Test tiny VAE round trip, but also exercise local export caching."""
+    # run it once, forcing refresh of export and remote variant check
+    _tiny_vae_roundtrip(device=device, dtype=dtype, local_hfhub_variant_check_only=False, force_export_refresh=True)
+    # then run with defaults
+    _tiny_vae_roundtrip(device=device, dtype=dtype)
+    # then explicitly force use of local cache export and variant check
+    _tiny_vae_roundtrip(device=device, dtype=dtype, local_hfhub_variant_check_only=True, only_load_export=True)
+
+
 def cpu() -> None:
     """Test CPU mode, full precision."""
-    _tiny_vae_roundtrip(device="cpu", dtype=torch.float32)
+    _tiny_vae_roundtrip_sequence(device="cpu", dtype=torch.float32)
 
 
 def gpu() -> None:
     """Test GPU mode, half-precision."""
-    _tiny_vae_roundtrip(device="cuda", dtype=torch.float16)
+    _tiny_vae_roundtrip_sequence(device="cuda", dtype=torch.float16)
 
 
 def bfloat() -> None:
@@ -112,4 +114,4 @@ def bfloat() -> None:
 
     Note: will fail if no GPU, and fallback to float16 if insufficient compute capability.
     """
-    _tiny_vae_roundtrip(device="cuda", dtype=torch.bfloat16)
+    _tiny_vae_roundtrip_sequence(device="cuda", dtype=torch.bfloat16)
