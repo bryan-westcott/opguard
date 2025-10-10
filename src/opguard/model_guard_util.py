@@ -66,6 +66,7 @@ import re
 import shutil
 import textwrap
 import traceback
+import types
 from collections.abc import Callable, Generator, Iterator, Mapping
 from contextlib import contextmanager, suppress
 from datetime import datetime
@@ -333,36 +334,87 @@ def make_guarded_call(
     call: Callable[..., object],
     wrapper: Callable[[object], object],
 ) -> Callable:
-    """Return a callable that runs `call(*args, **kwargs)` and then applies `wrapper`.
+    """Wrap `call` so that an invocation returns `wrapper(call(*args, **kwargs))`.
 
-    Args:
-        call:
-            The original function to wrap. Its signature/metadata are preserved
-            via `functools.wraps`.
-        wrapper:
-            A post-processing function applied to the result of `call`.
-            This can be identity (no-op) or a transformation (e.g., move/convert/
-            sanitize outputs).
+    Note: preserve metadata and bound-method semantics.
 
-    Returns:
-        A new function with the same signature as `call`. Each invocation:
+    Behavior
+    --------
+    - If `call` is a *bound method* (e.g., `self.fn`), the returned callable is
+      re-bound to the same `self` so attribute access inside `call` still sees the
+      original instance (i.e., `__self__` is preserved).
+    - If `call` is a free function or other callable, a regular wrapper is returned.
+    - Any decorator layers on `call` are unwrapped (`inspect.unwrap`) for accurate
+      metadata and to locate the underlying function for rebinding.
+    - Function metadata (`__name__`, `__qualname__`, `__doc__`, annotations, etc.)
+      is preserved via `functools.wraps`.
+
+    Args
+    ----
+    call:
+        The original callable to wrap. May be a bound method, free function,
+        or any callable. If it is a bound method, the result remains bound
+        to the same instance.
+    wrapper:
+        A post-processing function applied to the *result* of `call`.
+        It should accept exactly one argument (the output of `call`) and
+        return the transformed value.
+
+    Returns
+    -------
+    Callable
+        A callable with the same call signature as `call`. On each call:
         1) computes `out = call(*args, **kwargs)`
         2) returns `wrapper(out)`.
 
-    Notes:
-        - This does not modify `call` in place; it returns a new callable.
-        - If `wrapper` is an identity function, the behavior is effectively
-          the same as calling `call` directly.
-        - Useful with contexts that manage resources around the call while
-          normalizing/transforming outputs (e.g., CPU moves, detaching, casting).
+    Notes
+    -----
+    - This does not mutate `call`; it returns a new callable.
+    - Exceptions raised by `call` or by `wrapper` propagate unchanged.
+    - “Preserving bound semantics” means the returned callable has a valid
+      `__self__` when `call` was a bound method, which is crucial when
+      downstream logic (e.g., guards) inspects or mutates instance attributes.
+    - If `wrapper` is an identity/no-op, the behavior matches `call` aside from
+      the additional stack frame.
+
+    Examples
+    --------
+    >>> class C:
+    ...     def f(self, x):
+    ...         return x + 1
+    >>> c = C()
+    >>> g = make_guarded_call(c.f, lambda y: y + 10)
+    >>> assert g(2) == (c(2) + 10)
+    >>> assert getattr(g, "__self__", None) != c
     """
+    orig: Callable[..., object] = inspect.unwrap(call)
+    self_obj: object | None = getattr(call, "__self__", None)  # present for bound methods
+    base: Callable[..., object] = getattr(call, "__func__", call)  # the original function if bound
 
-    @wraps(call)
-    def wrapped(*args: object, **kwargs: object) -> object:
-        out = call(*args, **kwargs)
-        return wrapper(out)  # type: ignore[return-value]
+    if self_obj is not None and inspect.isfunction(base):
+        # BOUND METHOD CASE: keep descriptor semantics by defining a function
+        # that takes `self` explicitly, then bind it back to `self_obj`.
+        @wraps(base)
+        def _wrapped_bound(self: object, *args: object, **kwargs: object) -> object:
+            out = base(self, *args, **kwargs)  # <-- use the unbound function
+            return wrapper(out)
 
-    return wrapped
+        wrapped_call = types.MethodType(_wrapped_bound, self_obj)  # restores __self__
+        if not hasattr(wrapped_call, "__self__"):
+            message = "Self object not preserved"
+            raise ValueError(message)
+        if wrapped_call.__self__.__class__.__name__ != self_obj.__class__.__name__:
+            message = "Wrapped caller has self and names do not match"
+            raise ValueError(message)
+        return wrapped_call
+
+    # FREE FUNCTION / CALLABLE CASE: no binding to preserve
+    @wraps(base if inspect.isfunction(base) else orig)
+    def _wrapped_unbound(*args: object, **kwargs: object) -> object:
+        out = orig(*args, **kwargs)
+        return wrapper(out)
+
+    return _wrapped_unbound
 
 
 def sync_gc_and_cache_cleanup(
