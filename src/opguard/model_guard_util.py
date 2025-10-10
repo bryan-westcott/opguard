@@ -852,7 +852,7 @@ def variant_guard(
     dtype: torch.dtype | None = None,
     model_id: str | None = None,
     revision: str | None = None,
-    local_files_only: bool = True,
+    local_hfhub_variant_check_only: bool = False,
     variant_override: str | None = None,
 ) -> str:
     """Decide which Hugging Face Hub *variant* to request for a model download.
@@ -893,7 +893,7 @@ def variant_guard(
         `variant_override` is provided.
     revision : str | None
         Optional Hub revision to inspect (branch, tag, or commit SHA).
-    local_files_only: bool
+    local_hfhub_variant_check_only: bool
         Only look in local HF cache (default), unless False
     variant_override : str | None
         If provided, short-circuits all logic and is returned verbatim
@@ -940,7 +940,11 @@ def variant_guard(
     elif dtype in (torch.float16, torch.bfloat16):
         # otherwise, half precision requested
         # Prefer offline probe when requested
-        if local_files_only:
+        if local_hfhub_variant_check_only:
+            logger.warning(
+                "Checking local huggingface hub cache only for variant "
+                f"due to {local_hfhub_variant_check_only=} in variant_guard",
+            )
             try:
                 # Probe whether an fp16 variant is cached locally
                 # Note: with local_files_only==True it does NOT download
