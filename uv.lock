@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = "==3.11.*"
 resolution-markers = [
     "sys_platform == 'darwin'",
@@ -613,6 +613,7 @@ test = [
     { name = "pytest" },
     { name = "pytest-codeblocks" },
     { name = "pytest-cov" },
+    { name = "pytest-doctestplus" },
     { name = "pytest-xdist" },
     { name = "xdoctest" },
 ]
@@ -678,9 +679,10 @@ requires-dist = [
     { name = "pillow", specifier = ">=11.1.0" },
     { name = "pyexiftool", specifier = ">=0.5.6" },
     { name = "pymediainfo", specifier = ">=7.0.1" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=8" },
-    { name = "pytest-codeblocks", marker = "extra == 'test'", specifier = ">=0.16.1" },
-    { name = "pytest-cov", marker = "extra == 'test'" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.2" },
+    { name = "pytest-codeblocks", marker = "extra == 'test'", specifier = ">=0.17.0" },
+    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=5.0" },
+    { name = "pytest-doctestplus", marker = "extra == 'test'", specifier = ">=1.4.0" },
     { name = "pytest-xdist", marker = "extra == 'test'" },
     { name = "requests", specifier = ">=2.32.5" },
     { name = "scikit-learn", specifier = ">=1.6.1" },
@@ -2363,6 +2365,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/5e/f7/c933acc76f5208b3b00089573cf6a2bc26dc80a8aece8f52bb7d6b1855ca/pytest_cov-7.0.0.tar.gz", hash = "sha256:33c97eda2e049a0c5298e91f519302a1334c26ac65c1a483d6206fd458361af1", size = 54328, upload-time = "2025-09-09T10:57:02.113Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ee/49/1377b49de7d0c1ce41292161ea0f721913fa8722c19fb9c1e3aa0367eecb/pytest_cov-7.0.0-py3-none-any.whl", hash = "sha256:3b8e9558b16cc1479da72058bdecf8073661c7f57f7d3c5f22a1c23507f2d861", size = 22424, upload-time = "2025-09-09T10:57:00.695Z" },
+]
+
+[[package]]
+name = "pytest-doctestplus"
+version = "1.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fd/e5/97c4bc17e93d5caf6b37ebab0bdfd668c1c62d575e6e1e5040bfa759b4f2/pytest_doctestplus-1.4.0.tar.gz", hash = "sha256:df83832b1d11288572df2ee4c7cccdb421d812b8038a658bb514c9c62bdbd626", size = 47566, upload-time = "2025-01-25T04:18:38.224Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/88/08/0e0e38a6046f91ad6ae352c0639c1b6dd90e2cd53ab2d2282d1d231535fb/pytest_doctestplus-1.4.0-py3-none-any.whl", hash = "sha256:cfbae130ec90d4a2831819bbbfd097121b8e55f1e4d20a47ea992e4eaad2539a", size = 25236, upload-time = "2025-01-25T04:18:36.384Z" },
 ]
 
 [[package]]

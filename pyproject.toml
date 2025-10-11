@@ -100,10 +100,11 @@ notebook = [
 
 [project.optional-dependencies]
 test = [
-    "pytest>=8",
-    "pytest-cov",
+    "pytest>=8.2",
+    "pytest-cov>=5.0",  # coverage report plugin
     "pytest-xdist",
-    "pytest-codeblocks>=0.16.1",
+    "pytest-codeblocks>=0.17.0", # run code blocks in markdown (```python ... ```) as tests
+    "pytest-doctestplus>=1.4.0", # extended doctest support (e.g. skip directives, advanced parsing, particularly for codeblocks)
     "xdoctest>=1.2.0",
     "hypothesis",
 ]
@@ -137,6 +138,8 @@ addopts = """
   --doctest-modules
   --xdoctest
   --xdoctest-style=google
+  --cov=opguard
+  --cov-report=term-missing
 """
 # Declare marks
 markers = [
@@ -257,6 +260,9 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = []
+exclude = [
+    "*.ipynb"
+]
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
 unfixable = []
