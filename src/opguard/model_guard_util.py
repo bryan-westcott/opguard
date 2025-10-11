@@ -77,7 +77,7 @@ import textwrap
 import traceback
 import types
 from collections.abc import Callable, Generator, Iterator, Mapping
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager, nullcontext, suppress
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
@@ -142,7 +142,7 @@ def is_cuda_error(exc: BaseException) -> bool:
 
 
 def detach_exception_tracebacks(exc: BaseException, *, deep: bool = True) -> None:
-    """Detach/clear traceback frames to avoid retaining CUDA refs via frame locals.
+    """Detach/clear traceback frames to avoid retaining refs via frame locals.
 
     Args:
         exc:
@@ -159,11 +159,15 @@ def detach_exception_tracebacks(exc: BaseException, *, deep: bool = True) -> Non
           held by frame locals; on older versions this call is a harmless no-op.
         - Sets `exc.__traceback__ = None` to detach the traceback object itself.
         - When `deep=True`, repeats the process for `__context__` and `__cause__`.
+        - This function intentionally scrubs all exceptions, including typically
+          ignored types like keyboard interrupts as these can all inadvertently
+          tie up V/RAM.
 
     Why:
         - In Jupyter/long-lived processes, traceback frames keep their locals,
-          which often include `self` → modules → CUDA tensors; that can pin VRAM
-          even after you think you've freed it. Scrubbing frames breaks that chain.
+        which often include `self` → modules → CUDA/torch tensors; that can pin
+        VRAM/RAM even after you think you've freed it. Scrubbing frames breaks
+        that chain.
 
     Safety:
         - Safe to call multiple times.
@@ -444,33 +448,31 @@ def sync_gc_and_cache_cleanup(
     * device_list required for sync, even if not used to avoid potentially raising exception in exception
     """
     logger.debug(f"cleanup: {device_list=}, {do_sync=}, {do_garbage_collect=}, {do_empty_cache=}, {suppress_errors=}")
+
+    # Choose context manager once
+    cx = suppress(Exception) if suppress_errors else nullcontext()
+
+    # Filter CUDA devices safely (CPU-only hosts -> empty)
+    cuda_ok = torch.cuda.is_available()
+    cuda_devs = [d for d in device_list if isinstance(d, torch.device) and d.type == "cuda"] if cuda_ok else []
+
     # Best-effort drain; never clobber the primary error.
     # Note: synchronize all devices
-    if do_sync:
+    if do_sync and cuda_devs:
         for dev in device_list:
-            if suppress_errors:
-                with suppress(Exception):
-                    torch.cuda.synchronize(dev)
-            else:
+            with cx:
                 torch.cuda.synchronize(dev)
 
     # Garbage collect before cache empty, but after sync
     if do_garbage_collect:
-        if suppress_errors:
-            with suppress(Exception):
-                gc.collect()
-        else:
+        with cx:
             gc.collect()
 
     # Cache empty
-    if do_empty_cache:
-        for dev in device_list:
-            with torch.cuda.device(dev):
-                if suppress_errors:
-                    with suppress(Exception):
-                        torch.cuda.empty_cache()
-                else:
-                    torch.cuda.empty_cache()
+    if do_empty_cache and cuda_devs:
+        for dev in cuda_devs:
+            with cx, torch.cuda.device(dev):
+                torch.cuda.empty_cache()
 
 
 # ---------- helpers for setting .train() attr ----------
@@ -1071,20 +1073,26 @@ def device_guard(
         # Manual override, e.g., from prior call to this manager
         logger.debug(f"Using {device_list_override=}")
         return device_list_override
-    if not torch.cuda.is_available():
-        message = "CUDA is not available."
+
+    if (device != "cpu") and (not torch.cuda.is_available()):
+        message = "CUDA is not available and it is not 'cpu'."
         raise RuntimeError(message)
+
     if device_map is not None:
         if device_map != "auto":
             message = "Only device_map='auto' or None is supported."
             raise ValueError(message)
-        n = torch.cuda.device_count()
-        if n == 0:
-            message = "No CUDA devices visible."
-            raise RuntimeError(message)
-        device_list = [torch.device(f"cuda:{i}") for i in range(n)]
+        if device == "cpu":
+            device_list = [torch.device("cpu")]
+        else:
+            num_cuda = torch.cuda.device_count()
+            if num_cuda == 0:
+                message = "No CUDA devices visible."
+                raise RuntimeError(message)
+            device_list = [torch.device(f"cuda:{i}") for i in range(num_cuda)]
         logger.debug(f"Setting {device_list=} from {device_map=} in device_guard")
         return device_list
+
     if device is not None:
         dev = normalize_device(device)
         if dev.type != "cuda":
@@ -1646,7 +1654,7 @@ def autocast_guard(
 def vram_guard(
     *,
     device_list: list[torch.device],
-    sanitize_cuda_errors: bool = True,
+    sanitize_all_exceptions: bool = True,
     detach_outputs: bool = False,
     caller_fn: Callable[..., object] | None = None,
 ) -> Iterator[Callable]:
@@ -1658,6 +1666,10 @@ def vram_guard(
     * synchronizes (and waits on) all devices used and sanitze/re-throw exceptions
     * memory cleanup at the end: garbage collection and torch cache clear (in proper order)
     * handles exceptions gracefully
+
+    Warning:
+    This will detatch ALL exceptions, as even keyboard interrupts which are
+    typically not caught can tie up RAM/VRAM (e.g., in ipython/jupyter).
 
     Yields:
         if call function provided:
@@ -1684,15 +1696,18 @@ def vram_guard(
         # First sync: surface latent CUDA faults here (propagate if not sanitized).
         # Note: do not suppress, there is one more best effort sync in finally
         for dev in device_list:
-            torch.cuda.synchronize(dev)
+            if dev.type == "cuda":
+                torch.cuda.synchronize(dev)
     except Exception as e:
         # Sanitize and re-raise exception
         logger.debug("Exception inside vram_guard guarded execution")
-        if sanitize_cuda_errors and is_cuda_error(e):
-            # avoid references in traceback tying up VRAM
+        if sanitize_all_exceptions:
+            # Log full traceback
+            logger.exception("Guarded region failed")
+            # avoid references in traceback tying up RAM/VRAM
             detach_exception_tracebacks(e, deep=True)
-            message = "CUDA error during guarded region"
-            raise RuntimeError(message) from None
+            # re-raise sanitized exception
+        # re-raise original exception with or without sanitization
         raise
     finally:
         logger.debug("Performing vram_guard cleanup")
@@ -1793,7 +1808,7 @@ def load_guard(
 def call_guard(
     *,
     need_grads: bool,
-    sanitize_cuda_errors: bool = True,
+    sanitize_all_exceptions: bool = True,
     detach_outputs: bool = True,
     caller_fn: Callable[..., object] | None = None,
     effective_dtype: torch.dtype,
@@ -1815,7 +1830,7 @@ def call_guard(
         vram_guard(
             device_list=device_list,
             detach_outputs=detach_outputs,
-            sanitize_cuda_errors=sanitize_cuda_errors,
+            sanitize_all_exceptions=sanitize_all_exceptions,
             caller_fn=caller_fn,
         ) as guarded_call,
     ):
@@ -1844,7 +1859,7 @@ def model_guard(
             local_files_only, train_mode, loader_fn,
             export_name, only_load_export, force_export_refresh,
         call _gurad_kwargs:
-            need_grads, sanitize_cuda_errors, caller_fn, train_mode
+            need_grads, sanitize_all_exceptions, caller_fn, train_mode
         free_guard_kwargs:
             run_gc_and_clear_cache
     """

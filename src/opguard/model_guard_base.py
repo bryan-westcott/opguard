@@ -185,7 +185,7 @@ class ModelGuardBase(ABC):
         device_override: DeviceLike | None = None,
         device_map_override: DeviceMapLike | None = None,
         keep_warm: bool = False,
-        sanitize_cuda_errors: bool = True,
+        sanitize_all_exceptions: bool = True,
         local_hfhub_variant_check_only: bool = False,
         local_files_only: bool = False,
         only_load_export: bool = False,
@@ -211,7 +211,7 @@ class ModelGuardBase(ABC):
                 If True, models are eagerly loaded on init and kept in memory
                 across calls. If False, loading may be lazy and `_free()` may
                 release memory between calls.
-            sanitize_cuda_errors:
+            sanitize_all_exceptions:
                 If True, suspected CUDA `RuntimeError`s during guarded calls are
                 sanitized (tracebacks detached, devices synchronized, concise
                 error re-raised).
@@ -236,30 +236,7 @@ class ModelGuardBase(ABC):
         # A placeholder for overriding MODEL_ID without mutating class
         self._model_id_override: str | None = None
 
-        # ruff: noqa: PLR0913  (base class with lots of configurability)
-        # keep track of inputs/preferences
-        self.device: DeviceLike = device_override or type(self).DEFAULT_DEVICE
-        self.device_map: DeviceMapLike = device_map_override or type(self).DEFAULT_DEVICE_MAP
-        self.dtype_preference: torch.dtype = dtype_override or type(self).DTYPE_PREFERENCE
-        # initialize dtype, variant, device_list based on runtime hardware
-        self.device_list, self.dtype, self.variant = init_guard(
-            device=self.device,
-            device_map=self.device_map,
-            dtype=self.dtype_preference,
-            model_id=self.model_id,
-            revision=self.revision,
-            local_hfhub_variant_check_only=local_hfhub_variant_check_only,
-        )
-        logger.debug(f"Choices for {self.classname}: {self.dtype=}, {self.variant=}")
-
-        # loader-related params
-        self.local_files_only: bool = local_files_only
-        self.only_load_export: bool = only_load_export
-        self.force_export_refresh: bool = force_export_refresh
-        # caller related ptions
-        self.keep_warm: bool = keep_warm
-        self.sanitize_cuda_errors: bool = True
-
+        # Control logic
         # Set this if in context manager to avoid freeing each iteration
         self._in_context: bool = False
         # Whether shutdown free has completed (regardless of keep_warm option)
@@ -270,6 +247,31 @@ class ModelGuardBase(ABC):
         self._detector: Any = None
         # For extra configuration information to keep track of
         self.extra_info: dict[str, Any] = {}
+
+        # loader-related params
+        self.local_files_only: bool = local_files_only
+        self.only_load_export: bool = only_load_export
+        self.force_export_refresh: bool = force_export_refresh
+        # caller related ptions
+        self.keep_warm: bool = keep_warm
+        self.sanitize_all_exceptions: bool = True
+
+        # ruff: noqa: PLR0913  (base class with lots of configurability)
+        # keep track of inputs/preferences
+        self.device: DeviceLike = device_override or type(self).DEFAULT_DEVICE
+        self.device_map: DeviceMapLike = device_map_override or type(self).DEFAULT_DEVICE_MAP
+        self.dtype_preference: torch.dtype = dtype_override or type(self).DTYPE_PREFERENCE
+
+        # initialize dtype, variant, device_list based on runtime hardware
+        self.device_list, self.dtype, self.variant = init_guard(
+            device=self.device,
+            device_map=self.device_map,
+            dtype=self.dtype_preference,
+            model_id=self.model_id,
+            revision=self.revision,
+            local_hfhub_variant_check_only=local_hfhub_variant_check_only,
+        )
+        logger.debug(f"Choices for {self.classname}: {self.dtype=}, {self.variant=}")
 
         # prepare detector now
         if self.keep_warm:
@@ -412,7 +414,7 @@ class ModelGuardBase(ABC):
             # Note: dtype and device guard are already pre-checked in init
             with call_guard(
                 need_grads=self.need_grads,
-                sanitize_cuda_errors=self.sanitize_cuda_errors,
+                sanitize_all_exceptions=self.sanitize_all_exceptions,
                 caller_fn=self._caller,
                 effective_dtype=self.dtype,
                 device_list=self.device_list,

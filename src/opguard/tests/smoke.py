@@ -106,7 +106,10 @@ def cpu() -> None:
 
 def gpu() -> None:
     """Test GPU mode, half-precision."""
-    _tiny_vae_roundtrip_sequence(device="cuda", dtype=torch.float16)
+    if torch.cuda.is_available():
+        _tiny_vae_roundtrip_sequence(device="cuda", dtype=torch.float16)
+    else:
+        logger.warning("Unable to run GPU tests due to loack of CUDA/GPU")
 
 
 def bfloat() -> None:
@@ -114,4 +117,7 @@ def bfloat() -> None:
 
     Note: will fail if no GPU, and fallback to float16 if insufficient compute capability.
     """
-    _tiny_vae_roundtrip_sequence(device="cuda", dtype=torch.bfloat16)
+    if torch.cuda.is_available():
+        _tiny_vae_roundtrip_sequence(device="cuda", dtype=torch.bfloat16)
+    else:
+        logger.warning("Unable to run BFLOAT16 tests due to loack of CUDA/GPU")
