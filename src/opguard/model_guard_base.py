@@ -1,4 +1,4 @@
-"""High-level runtime guard for CUDA-backed inference.
+"""High-level runtime guard for inference.
 
 This module defines `ModelGuardBase`, an abstract base class that wraps the
 lower-level utilities in `model_guard.py` to run VRAM-heavy models safely.
@@ -76,7 +76,7 @@ from .model_guard_util import (
 
 
 class ModelGuardBase(ABC):
-    """Abstract guard for CUDA inference with predictable memory behavior.
+    """Abstract guard for inference with predictable memory behavior.
 
     This base class owns the execution environment (device list, effective
     dtype, AMP/grad setup, synchronization, traceback scrubbing, GC/cache
@@ -96,9 +96,9 @@ class ModelGuardBase(ABC):
             ... out = guard(input_raw=...)
 
     Notes:
-      - Each `__call__` is wrapped in a composed CUDA guard (grad/AMP/sync/
-        sanitize/GC/cache clear). Outputs are typically detached to CPU to
-        avoid dangling CUDA refs in notebooks or long-lived services.
+      - Each `__call__` is wrapped in a composed guard.  Outputs are typically
+        detached to CPU to avoid dangling refs in notebooks or long-lived
+        services which can tie up VRAM (and RAM in cpu-only mode).
       - Device/dtype selection is resolved once at init; bf16→fp16→fp32 fallback
         is applied based on capability.
 
@@ -203,17 +203,15 @@ class ModelGuardBase(ABC):
                 Optional single-device override (e.g., 0, "cuda:1",
                 `torch.device("cuda:0")`). If omitted, uses `DEFAULT_DEVICE`.
             device_map_override:
-                Optional multi-GPU placement override. If `"auto"`, the device
-                list is all visible CUDA devices in index order. If omitted,
-                uses `DEFAULT_DEVICE_MAP`. Other mappings are not interpreted
-                here.
+                Optional multi-device placement override. It should be list of
+                torch devices, optionally a singleton list of the cpu device.
             keep_warm:
                 If True, models are eagerly loaded on init and kept in memory
                 across calls. If False, loading may be lazy and `_free()` may
                 release memory between calls.
             sanitize_all_exceptions:
-                If True, suspected CUDA `RuntimeError`s during guarded calls are
-                sanitized (tracebacks detached, devices synchronized, concise
+                If Ture, any exceptions during guarded calls are
+                sanitized (tracebacks detached, cuda devices synchronized, concise
                 error re-raised).
             local_hfhub_variant_check_only:
                 only look local cache when checking hfhub for variants
@@ -226,7 +224,7 @@ class ModelGuardBase(ABC):
                 force a refresh of the local export
 
         Notes:
-            - No heavy CUDA allocation happens here beyond device/dtype resolution.
+            - No heavy model allocation happens here beyond device/dtype resolution.
             - If `keep_warm` is True, `_load()` is invoked to eagerly construct
               model components.
             - Use the context-manager protocol to auto-load/free:

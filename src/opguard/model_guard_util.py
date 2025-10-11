@@ -1,7 +1,7 @@
-"""CUDA guards and utilities for PyTorch.
+"""AI/ML model guards and utilities for PyTorch.
 
-This module provides composable context managers and helpers to run CUDA work
-safely and predictably.
+This module provides composable context managers and helpers to run memory-intensive
+(and especially VRAM) models safely and predictably.
 
 What this fixes:
 - Tying up VRAM on past calculations, especially exceptions and Jupyter notebooks
@@ -50,15 +50,15 @@ Composable context managers:
 - Model Calling
     - autocast_guard: scope torch.autocast for the chosen device/dtype to reduce compute/memory.
     - grad_guard: toggle torch.set_grad_enabled / torch.inference_mode.
-    - vram_guard: Prevent VRAM from getting pinned by stale tensors:
+    - vram_guard: Prevent VRAM (or RAM) from getting pinned by stale tensors:
                 sync streams, detach/move outputs off-GPU as needed, run GC,
-                and torch.cuda.empty_cache(); coalesce/surface CUDA errors deterministically.
+                and torch.cuda.empty_cache(); coalesce/surface errors deterministically.
 - Clean-up
     - free_guard: ensure garbage collection and torch cache clear happen after model delete
 
 Utility functions:
 - Check support for bfloat16 (based on compute capability)
-- Detach CUDA tracebacks (avoiding tying up VRAM on exceptions)
+- Detach exception tracebacks (avoiding tying up VRAM/RAM on exceptions)
 - Device and device_map handling (normalization)
 """
 
@@ -71,7 +71,6 @@ import importlib
 import inspect
 import json
 import os
-import re
 import shutil
 import textwrap
 import traceback
@@ -101,44 +100,7 @@ DeviceMapLike: TypeAlias = str | Mapping[str, DeviceLike]
 DetachFn = Callable[[object], object]
 
 
-# ---------- CUDA-ish error detection / scrubbing ----------
-"""
-Message pattern to search exceptions for evicence of CUDA.
-Note: used for avoiding VRAM leaks due to tracebacks.
-"""
-_CUDA_MESSAGE_PATTERN = re.compile(
-    r"(cuda|cublas|cudnn|cufft|cusolver|nccl|device-?side assert|"
-    r"illegal memory access|out of memory|no kernel image|invalid device)",
-    re.IGNORECASE,
-)
-
-
-def is_cuda_error(exc: BaseException) -> bool:
-    """Heuristically determine whether an exception likely originated from CUDA.
-
-    Args:
-        exc:
-            The exception to inspect.
-
-    Returns:
-        bool:
-            True if the exception is a known CUDA error, else False.
-
-    Logic:
-        - Returns True for `torch.cuda.OutOfMemoryError`.
-        - Returns True for `RuntimeError` whose message contains common CUDA /
-          library substrings (CUDA/cuBLAS/cuDNN/NCCL, OOM, illegal access, etc.).
-        - Returns False otherwise.
-
-    Notes:
-        - Many CUDA failures in PyTorch surface as plain `RuntimeError` with
-          CUDA-ish text; this helper is designed to catch those.
-        - This check is conservative; it may produce false negatives if vendors
-          change wording in error messages.
-    """
-    if isinstance(exc, torch.cuda.OutOfMemoryError):
-        return True
-    return isinstance(exc, RuntimeError) and bool(_CUDA_MESSAGE_PATTERN.search(str(exc)))
+# ---------- Error detection / scrubbing ----------
 
 
 def detach_exception_tracebacks(exc: BaseException, *, deep: bool = True) -> None:
@@ -171,8 +133,6 @@ def detach_exception_tracebacks(exc: BaseException, *, deep: bool = True) -> Non
 
     Safety:
         - Safe to call multiple times.
-        - Intended for use alongside your error sanitization path (e.g., when
-          `is_cuda_error(exc)` is True), prior to GC and cache clearing.
     """
     if exc is None:
         return
@@ -230,7 +190,7 @@ def normalize_device(d: DeviceLike) -> torch.device:
             - integer CUDA index (e.g., `0` → `'cuda:0'`)
             - string `'cuda'` (uses current CUDA device if set, else index 0)
             - string `'cuda:N'`
-
+            - string `'cpu'`
     Returns:
         torch.device: A normalized CUDA device.
 
@@ -1044,30 +1004,29 @@ def device_guard(
     device_map: DeviceMapLike | None,
     device_list_override: list[torch.device] | None = None,
 ) -> list[torch.device]:
-    """Resolve a deterministic list of CUDA devices from `device` and/or `device_map`.
+    """Resolve a deterministic list of devices from `device` and/or `device_map`.
 
     Args:
         device:
-            A single CUDA device spec (e.g., 0, "cuda:1",
+            A single CPU/CUDA device spec (e.g., 0, "cuda:1",
             torch.device("cuda:0")). When provided together with `device_map`,
             this device will be included in the result.
         device_map:
             Placement hint for multi-GPU workloads.
-            - "auto": include **all visible CUDA devices** in index order.
+            - "auto": include **all visible CPU/CUDA devices** in index order.
             - None  : no multi-device expansion is performed.
             Other mapping forms are not interpreted here.
         device_list_override:
             manual setting of device_list, e.g., from prior call to this context manager
 
     Returns:
-        list[torch.device]: Normalized CUDA devices to use. If both `device`
+        list[torch.device]: Normalized CPU/CUDA device(s) to use. If both `device`
         and `device_map="auto"` are provided, the result is the **union** of the
         explicit device and all visible devices (de-duplicated).
 
     Notes:
-        - Raises if CUDA is unavailable or if neither `device` nor `device_map`
-          is provided.
-        - Only CUDA devices are returned; non-CUDA placements are rejected here.
+        - Raises if CUDA is unavailable in non-cpu mode or if neither `device`
+          nor `device_map` is provided.
     """
     if device_list_override:
         # Manual override, e.g., from prior call to this manager
@@ -1095,9 +1054,6 @@ def device_guard(
 
     if device is not None:
         dev = normalize_device(device)
-        if dev.type != "cuda":
-            message = f"Expected a CUDA device, got {dev!s}."
-            raise RuntimeError(message)
         device_list = [dev]
         logger.debug(f"Setting {device_list=} from {device=} in device_guard")
         return device_list
@@ -1111,11 +1067,11 @@ def dtype_guard(
     dtype_desired: torch.dtype,
     dtype_override: torch.dtype | None = None,
 ) -> torch.dtype:
-    """Validate the requested dtype against the selected CUDA devices and select best.
+    """Validate the requested dtype against the CPU/CUDA devices and select best.
 
     Args:
         device_list:
-            Normalized CUDA devices to be used for computation (e.g.,
+            Normalized CPU/CUDA devices to be used for computation (e.g.,
             [torch.device('cuda:0'), torch.device('cuda:1')]).
         dtype_desired:
             The preferred compute dtype to try first.
@@ -1658,7 +1614,7 @@ def vram_guard(
     detach_outputs: bool = False,
     caller_fn: Callable[..., object] | None = None,
 ) -> Iterator[Callable]:
-    """Sync/sanitize/cleanup wrapper across all provided CUDA devices.
+    """Sync/sanitize/cleanup wrapper across all devices, where applicable.
 
     Features:
     * applies to_cpu/detach for all outputs
