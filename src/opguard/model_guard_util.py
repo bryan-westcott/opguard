@@ -80,7 +80,7 @@ from contextlib import contextmanager, nullcontext, suppress
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeAlias, overload
+from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, overload, runtime_checkable
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -134,9 +134,6 @@ def detach_exception_tracebacks(exc: BaseException, *, deep: bool = True) -> Non
     Safety:
         - Safe to call multiple times.
     """
-    if exc is None:
-        return
-
     # Clear this exception's traceback frames (Py 3.11+) and detach
     tb = exc.__traceback__
     with suppress(Exception):
@@ -1386,10 +1383,26 @@ def eval_guard(
         yield _apply_train(models_or_loader)
 
 
+@runtime_checkable
+class LoaderParams(Protocol):
+    """The expected object attributes for loader self.
+
+    This includes the critical parts of ModelGuardBase, and provided to avoid type
+    checking errors only.
+    """
+
+    model_id: str
+    device: Any
+    dtype: Any
+    variant: str
+    local_files_only: bool
+    revision: str
+
+
 def cache_guard(
     *,
     loader_fn: Callable[..., Any],
-    loader_params_obj: object | None = None,
+    loader_params_obj: LoaderParams | None = None,
     loader_kwargs: dict[str, Any] | None = None,
     export_name: str | None = None,
     only_load_export: bool = False,
