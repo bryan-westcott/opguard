@@ -9,7 +9,8 @@ To run, with debugging:     uv run pytest --log-cli-level=DEBUG --capture=no
 import torch
 from diffusers import AutoencoderTiny
 from loguru import logger
-from opguard import ModelGuardBase
+
+from opguard.model_guard_base import ModelGuardBase
 
 
 class Smoke(ModelGuardBase):
