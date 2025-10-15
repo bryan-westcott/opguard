@@ -51,7 +51,7 @@ It gives you **all of the above** in one clean abstraction:
 
 ---
 
-### Quickstart
+### Minimal Example 
 
 ```python
 import torch
