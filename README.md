@@ -96,4 +96,4 @@ with TinyVAE() as vae:
 
 ### License & attribution
 
-Apache 2.0
+Apache 2.0, see LICENSE and NOTICE files.
