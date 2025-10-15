@@ -1,10 +1,6 @@
 
 
 
-**Because GPUs deserve better error handling.**
-
----
-
 ### Why this package?
 
 Have you ever…
@@ -24,12 +20,12 @@ Yeah — same.
 
 ### What it is
 
-**OpGuard** provides a minimal, extensible layer for *safe, deterministic inference*.  
+**OpGuard** provides a minimal, extensible layer for safe, deterministic inference.  
 It wraps all the gritty setup and teardown around your model so you can focus on logic, not leaks.
 
 ---
 
-### 🧩 Composable context managers
+### Composable context managers
 
 Use them directly if you only need specific functionality:
 
@@ -40,12 +36,9 @@ Use them directly if you only need specific functionality:
 | **Calling**        | `call_guard` | `autocast_guard`,<br>`grad_guard`,<br>`vram_guard` | Handle mixed precision, no-grad inference, and predictable VRAM cleanup |
 | **Cleanup**        | - |`free_guard` | Garbage-collect and clear Torch caches on release |
 
-Each can be used standalone or combined via higher-level aggregates:  
-`init_guard`, `load_guard`, `call_guard`, and `free_guard`.
-
 ---
 
-### 🧱 `OpGuardBase`: the all-in-one wrapper
+### `OpGuardBase`: all-in-one wrapper object
 
 If you’d rather not wire these together yourself, subclass `OpGuardBase`.  
 It gives you **all of the above** in one clean abstraction:
