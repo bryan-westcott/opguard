@@ -10,7 +10,7 @@ Have you ever…
 * forgotten to call `.eval()` or disable grads before a “quick test”?  
 * wished your favorite HF model already had your mixins and variant pre-baked?  
 * reluctantly restarted a Jupyter kernel just to reclaim VRAM after a stray exception?  
-* fought with yet another inconsistent model loader signature (but still love HF ❤️)?  
+* fought with yet another inconsistent model loader signature (but still love HF)?  
 * watched production suddenly and perplexingly fail because a weight revision changed?  
 * burned time and money re-caching publicly available weights across environments?  
 
