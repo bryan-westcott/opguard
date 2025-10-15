@@ -34,7 +34,7 @@ It wraps all the gritty setup and teardown around your model so you can focus on
 Use them directly if you only need specific functionality:
 
 | Category           | Convenience     | Guards | Purpose |
-|:-------------------|:----------------|:---:|: --------------|
+|:-------------------|:----------------|:---:|:--------------|
 | **Initialization** |  `init_guard` | `device_guard`,<br>`dtype_guard`,<br>`variant_guard` | Pick the best device, dtype, and model variant for your hardware |
 | **Loading**        | `load_guard` | `local_guard`,<br>`eval_guard`,<br>`cache_guard` | Enforce local-only loads, set train/eval mode, and safely cache exports |
 | **Calling**        | `call_guard` | `autocast_guard`,<br>`grad_guard`,<br>`vram_guard` | Handle mixed precision, no-grad inference, and predictable VRAM cleanup |
