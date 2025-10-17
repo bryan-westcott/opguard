@@ -59,7 +59,7 @@ dev = [
     "matplotlib-stubs>=0.2.0",
     "ml-dtypes>=0.4.1",
     "mypy-boto3-s3>=1.35.76.post1",
-    "mypy>=1.14.1",
+    "mypy>=1.18.2",
     "pandas-stubs>=2.2.3.241126",
     "types-pillow>=10.2.0.20240822",
     "types-python-dateutil>=2.9.0.20241206",
@@ -67,10 +67,10 @@ dev = [
     "types-pyyaml>=6.0.12.20240917",
     "types-requests>=2.32.0.20241016",
     "types-tqdm>=4.67.0.20241119",
-    "ruff>=0.13.2",
-    "docformatter>=1.7.6",
+    "ruff>=0.14.1",
+    "docformatter>=1.7.7",
     "types-openpyxl>=3.1.5.20241225",
-    "yamllint>=1.35.1",
+    "yamllint>=1.37.1",
     "ipykernel>=6.29.5",
     "supervision>=0.26.1",
 ]
@@ -117,17 +117,15 @@ build-backend = "setuptools.build_meta"
 
 # entrypoint for tests
 [project.scripts]
-smoke-cpu = "opguard.tests.smoke:cpu"
-smoke-gpu = "opguard.tests.smoke:gpu"
-smoke-bfloat = "opguard.tests.smoke:bfloat"
-slow = "opguard.tests.slow:main"
+smoke = "opguard.tests.smoke:smoke"
+slow = "opguard.tests.smoke:slow"
 
 # Pytest config (minimal and portable)
 [tool.pytest.ini_options]
 # Don't set pythonpath, rely on editable install
 testpaths = ["src/opguard/tests"]
 python_files = ["smoke.py"]
-python_functions = ["cpu", "gpu", "bfloat"]
+python_functions = ["smoke", "slow"]
 # Default flags: no stdout spam, show locals on failure, fail on unknown marks
 addopts = """
   -q
@@ -320,4 +318,7 @@ version = "2.14.0"
 version = "0.8.0"
 
 [tool.uv-pre-commit]
-version = "0.8.22"
+version = "0.9.3"
+
+[tool.yamlfmt]
+version = "0.19.0"

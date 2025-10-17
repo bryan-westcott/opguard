@@ -139,7 +139,7 @@ repos:
   # ---------------------------------------------------------
   # Note: ruff installed in pyproject dev group
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.13.2
+    rev: v0.14.1
     hooks:
       - id: ruff
         name: ruff
@@ -243,7 +243,7 @@ repos:
   # yamlfmt - format yaml files
   # ---------------------------------------------------------
   - repo: https://github.com/google/yamlfmt
-    rev: v0.17.2 # pick a tagged release
+    rev: v0.19.0
     hooks:
       - id: yamlfmt
   #
@@ -284,7 +284,7 @@ repos:
   # uv-pre-commit - ensure lock file is up to date
   # ---------------------------------------------------------
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.8.22
+    rev: 0.9.3
     hooks:
       - id: uv-lock
   #

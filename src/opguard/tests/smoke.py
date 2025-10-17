@@ -122,3 +122,20 @@ def bfloat() -> None:
         _tiny_vae_roundtrip_sequence(device="cuda", dtype=torch.bfloat16)
     else:
         logger.warning("Unable to run BFLOAT16 tests due to loack of CUDA/GPU")
+
+
+def smoke() -> None:
+    """Simplest run (no CUDA/GPU needed)."""
+    _tiny_vae_roundtrip(
+        device="cpu",
+        dtype="torch.float32",
+        local_hfhub_variant_check_only=False,
+        force_export_refresh=True,
+    )
+
+
+def slow() -> None:
+    """Slower tests, checks basic caching and multiple precision/devices."""
+    cpu()
+    gpu()
+    bfloat()
