@@ -1,14 +1,14 @@
 """High-level runtime guard for inference.
 
-This module defines `ModelGuardBase`, an abstract base class that wraps the
+This module defines `OpGuardBase`, an abstract base class that wraps the
 lower-level utilities in `model_guard.py` to run VRAM-heavy models safely.
 It centralizes device/dtype resolution, AMP/grad modes, cross-device sync,
 traceback sanitization, and cache cleanup—while leaving model loading and
 the forward pass to subclasses.
 
-`ModelGuardBase` can be used persistently or as a context manager:
-    with MyModelGuard(...) as guard:
-        out = guard(input_raw=...)
+`OpGuardBase` can be used persistently or as a context manager:
+    with OpGuardDerived(...) as guard_model:
+        out = guarded_model(input_raw=...)
 
 When run persistently, it can optionally:
     * lazy load model on call
@@ -23,8 +23,8 @@ Minimal example: this will apply all the guards (with default options)
 
 >>> import torch
 >>> from diffusers import AutoencoderTiny
->>> from model_guard import ModelGuardBase
->>> class TinyVae(ModelGuardBase):
+>>> from model_guard import OpGuardBase
+>>> class TinyVae(OpGuardBase):
 ...     NAME = "tiny-vae"
 ...     MODEL_ID = "madebyollin/taesd"
 ...     REVISION = "main"
@@ -75,7 +75,7 @@ from .model_guard_util import (
 )
 
 
-class ModelGuardBase(ABC):
+class OpGuardBase(ABC):
     """Abstract guard for inference with predictable memory behavior.
 
     This base class owns the execution environment (device list, effective
@@ -88,12 +88,12 @@ class ModelGuardBase(ABC):
 
     Usage patterns:
         1) Persistent instance (keep models warm across calls):
-            >>> guard = MyModelGuard(device="cuda:0", dtype=torch.bfloat16, keep_warm=True)
+            >>> guard = OpGuardDerived(device="cuda:0", dtype=torch.bfloat16, keep_warm=True)
             ... out = guard(input_raw=...)
             ...  out2 = guard(input_raw=...)
         2) Context manager (auto-load on enter, auto-free on exit):
-            >>> with MyModelGuard(device_map="auto", dtype=torch.bfloat16) as guard:
-            ... out = guard(input_raw=...)
+            >>> with OpGuardDerived(device_map="auto", dtype=torch.bfloat16) as guarded_model:
+            ... out = guarded_model(input_raw=...)
 
     Notes:
       - Each `__call__` is wrapped in a composed guard.  Outputs are typically
@@ -381,7 +381,7 @@ class ModelGuardBase(ABC):
         logger.debug("Free complete (including sync, garbage collection, and torch cache empty)")
         self._is_freed = True
 
-    def __enter__(self) -> "ModelGuardBase":
+    def __enter__(self) -> "OpGuardBase":
         """Support for use as context manager, avoiding agressive per-call freeing."""
         self._in_context = True
         logger.debug("Pre-loading models on enter due to context manager")

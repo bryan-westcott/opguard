@@ -1,9 +1,9 @@
-"""Smoke tests for ModelGuard exercising CPU, GPU, and BFloat modes.
+"""Smoke tests for OpGuardBase exercising CPU, GPU, and BFloat modes.
 
 To run, with debugging:     uv run pytest --log-cli-level=DEBUG --capture=no
 """
 
-# We do not care about LSP substitutability, ModelGuardBase is not used directly
+# We do not care about LSP substitutability, OpGuard is not used directly
 # mypy: disable-error-code=override
 
 import pytest
@@ -11,10 +11,10 @@ import torch
 from diffusers import AutoencoderTiny
 from loguru import logger
 
-from opguard.model_guard_base import ModelGuardBase
+from opguard.model_guard_base import OpGuardBase
 
 
-class Smoke(ModelGuardBase):
+class Smoke(OpGuardBase):
     """Tiny VAE for SD."""
 
     NAME = "tiny-vae"
@@ -79,7 +79,7 @@ class Smoke(ModelGuardBase):
 
 
 def _tiny_vae_roundtrip(*, device: str | torch.device, dtype: torch.dtype, **kwargs) -> None:
-    """Tiny round-trip VAE that exercises ModelGuardBase with various device/dtypes."""
+    """Tiny round-trip VAE that exercises OpGuard with various device/dtypes."""
     # ruff: noqa: ANN003  (too restrictive on tests)
     batch: int = 2
     logger.info(f"Running smoke test with {device=}, {dtype=}, {kwargs=}")
