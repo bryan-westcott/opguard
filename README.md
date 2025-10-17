@@ -1,7 +1,7 @@
 
 
 
-### Why this package?
+### 💭 Why this package?
 
 Have you ever…
 
@@ -18,14 +18,14 @@ Yeah — same.
 
 ---
 
-### What it is
+### ⚙️ What it is
 
 **OpGuard** provides a minimal, extensible layer for safe, deterministic inference.  
 It wraps all the gritty setup and teardown around your model so you can focus on logic, not leaks.
 
 ---
 
-### Composable context managers
+### 🧩 Composable context managers
 
 Use them directly if you only need specific functionality:
 
@@ -38,7 +38,7 @@ Use them directly if you only need specific functionality:
 
 ---
 
-### `OpGuardBase`: all-in-one wrapper object
+### 🧰 `OpGuardBase`: all-in-one wrapper object
 
 If you’d rather not wire these together yourself, subclass `OpGuardBase`.  
 It gives you **all of the above** in one clean abstraction:
@@ -51,7 +51,7 @@ It gives you **all of the above** in one clean abstraction:
 
 ---
 
-### Minimal Example 
+### 🚀 Minimal Example (Quick Start)
 
 ```python
 import torch
@@ -83,7 +83,7 @@ with TinyVAE() as vae:
 
 ---
 
-### What you get
+### 🌟 What you get
 
 * **Automatic precision fallback** — picks the best supported dtype  
 * **Local-only caching** — no accidental network pulls in production  
@@ -94,6 +94,6 @@ with TinyVAE() as vae:
 
 ---
 
-### License & attribution
+### ⚖️ License & attribution
 
-Apache 2.0, see LICENSE and NOTICE files.
+Apache 2.0
