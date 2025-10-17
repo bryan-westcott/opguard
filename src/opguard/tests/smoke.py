@@ -6,6 +6,7 @@ To run, with debugging:     uv run pytest --log-cli-level=DEBUG --capture=no
 # We do not care about LSP substitutability, ModelGuardBase is not used directly
 # mypy: disable-error-code=override
 
+import pytest
 import torch
 from diffusers import AutoencoderTiny
 from loguru import logger
@@ -124,16 +125,18 @@ def bfloat() -> None:
         logger.warning("Unable to run BFLOAT16 tests due to loack of CUDA/GPU")
 
 
+@pytest.mark.smoke
 def smoke() -> None:
     """Simplest run (no CUDA/GPU needed)."""
     _tiny_vae_roundtrip(
         device="cpu",
-        dtype="torch.float32",
+        dtype=torch.float32,
         local_hfhub_variant_check_only=False,
         force_export_refresh=True,
     )
 
 
+@pytest.mark.slow
 def slow() -> None:
     """Slower tests, checks basic caching and multiple precision/devices."""
     cpu()
