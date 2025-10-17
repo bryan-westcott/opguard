@@ -1,7 +1,7 @@
 """High-level runtime guard for inference.
 
 This module defines `OpGuardBase`, an abstract base class that wraps the
-lower-level utilities in `model_guard.py` to run VRAM-heavy models safely.
+lower-level utilities in `opguard_util.py` to run VRAM-heavy models safely.
 It centralizes device/dtype resolution, AMP/grad modes, cross-device sync,
 traceback sanitization, and cache cleanup—while leaving model loading and
 the forward pass to subclasses.
@@ -23,7 +23,7 @@ Minimal example: this will apply all the guards (with default options)
 
 >>> import torch
 >>> from diffusers import AutoencoderTiny
->>> from model_guard import OpGuardBase
+>>> from opguard import OpGuardBase
 >>> class TinyVae(OpGuardBase):
 ...     NAME = "tiny-vae"
 ...     MODEL_ID = "madebyollin/taesd"
@@ -65,7 +65,7 @@ from typing import Any, ClassVar
 import torch
 from loguru import logger
 
-from .model_guard_util import (
+from .opguard_util import (
     DeviceLike,
     DeviceMapLike,
     call_guard,

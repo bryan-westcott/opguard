@@ -29,10 +29,10 @@ What this fixes:
 Composite context manager:
 - model_guard: convenience of all guards, yields a guarded callable model
     - Note: this is provided for illustration purposes, while it can be
-            use for fast experimentaion, the ModelGuardBase calss is still
+            use for fast experimentaion, the OpGuardBase class is still
             preferred
 
-Aggregate context managers - used individually in classes (see ModelGuardBase)
+Aggregate context managers - used individually in classes (see OpGuardBase)
 - init_guard - aggregates: device_guard, dtype_guard, variant_guard
 - load_guard - aggregates: local_guard, eval_guard, cache_guard
 - call_guard - aggregates: autocast_guard, grad_guard, vram_guard
@@ -1387,8 +1387,8 @@ def eval_guard(
 class LoaderParams(Protocol):
     """The expected object attributes for loader self.
 
-    This includes the critical parts of ModelGuardBase, and provided to avoid type
-    checking errors only.
+    This includes the critical parts of OpGuardBase, and provided to avoid type checking
+    errors only.
     """
 
     model_id: str

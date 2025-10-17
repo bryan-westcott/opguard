@@ -11,7 +11,7 @@ import torch
 from diffusers import AutoencoderTiny
 from loguru import logger
 
-from opguard.model_guard_base import OpGuardBase
+from opguard.opguard_base import OpGuardBase
 
 
 class Smoke(OpGuardBase):

@@ -1,7 +1,7 @@
 """Utilities for opguard Inference."""
 
-from . import model_guard_base as _base
-from . import model_guard_util as _util
+from . import opguard_base as _base
+from . import opguard_util as _util
 
 # Gather all public names from both modules
 _public_names: list[str] = []
