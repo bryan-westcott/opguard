@@ -129,7 +129,7 @@ python_files = ["smoke.py"]
 python_functions = ["smoke", "slow"]
 # Default flags: no stdout spam, show locals on failure, fail on unknown marks
 # Note: for now just runs smoke test in plain pytest
-#       enable slow in plain by removing the -m below
+#       enable/disable slow in plain by removing/retaining: '-m "not slow"'
 addopts = """
   -q
   --strict-markers
