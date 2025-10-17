@@ -1,5 +1,7 @@
 {
   "checks": {
-    "uncomparables.misc": false
+    "uncomparables.misc": false,
+    "needless_variants.misc": false,
+    "typography.symbols": false
   }
 }

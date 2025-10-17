@@ -1,18 +1,15 @@
-
-
-
 ### 💭 Why this package?
 
 Have you ever…
 
-* wasted time juggling devices, dtypes, and model variants for every machine you run on?  
-* accidentally pulled remote weights you *swore* were cached?  
-* forgotten to call `.eval()` or disable grads before a “quick test”?  
-* wished your favorite HF model already had your mixins and variant pre-baked?  
-* reluctantly restarted a Jupyter kernel just to reclaim VRAM after a stray exception?  
-* fought with yet another inconsistent model loader signature (but still love HF)?  
-* watched production suddenly and perplexingly fail because a weight revision changed?  
-* burned time and money re-caching publicly available weights across environments?  
+- wasted time juggling devices, dtypes, and model variants for every machine you run on?
+- accidentally pulled remote weights you _swore_ were cached?
+- forgotten to call `.eval()` or disable grads before a “quick test”?
+- wished your favorite HF model already had your mixins and variant pre-baked?
+- reluctantly restarted a Jupyter kernel just to reclaim VRAM after a stray exception?
+- fought with yet another inconsistent model loader signature (but still love HF)?
+- watched production suddenly and perplexingly fail because a weight revision changed?
+- burned time and money re-caching publicly available weights across environments?
 
 Yeah — same.
 
@@ -20,7 +17,7 @@ Yeah — same.
 
 ### ⚙️ What it is
 
-**OpGuard** provides a minimal, extensible layer for safe, deterministic inference.  
+**OpGuard** provides a minimal, extensible layer for safe, deterministic inference.
 It wraps all the gritty setup and teardown around your model so you can focus on logic, not leaks.
 
 ---
@@ -29,25 +26,25 @@ It wraps all the gritty setup and teardown around your model so you can focus on
 
 Use them directly if you only need specific functionality:
 
-| Category           | Convenience<br>Aggregate  | Individual<br>Guards | Purpose |
-|:-------------------|:----------------:|:---:|:--------------|
-| **Initialization** |  `init_guard` | `device_guard`,<br>`dtype_guard`,<br>`variant_guard` | Pick the best device, dtype, and model variant for your hardware |
-| **Loading**        | `load_guard` | `local_guard`,<br>`eval_guard`,<br>`cache_guard` | Enforce local-only loads, set train/eval mode, and safely cache exports |
-| **Calling**        | `call_guard` | `autocast_guard`,<br>`grad_guard`,<br>`vram_guard` | Handle mixed precision, no-grad inference, and predictable VRAM cleanup |
-| **Cleanup**        | - |`free_guard` | Garbage-collect and clear Torch caches on release |
+| Category           | Convenience<br>Aggregate |                 Individual<br>Guards                 | Purpose                                                                 |
+| :----------------- | :----------------------: | :--------------------------------------------------: | :---------------------------------------------------------------------- |
+| **Initialization** |       `init_guard`       | `device_guard`,<br>`dtype_guard`,<br>`variant_guard` | Pick the best device, dtype, and model variant for your hardware        |
+| **Loading**        |       `load_guard`       |   `local_guard`,<br>`eval_guard`,<br>`cache_guard`   | Enforce local-only loads, set train/eval mode, and safely cache exports |
+| **Calling**        |       `call_guard`       |  `autocast_guard`,<br>`grad_guard`,<br>`vram_guard`  | Handle mixed precision, no-grad inference, and predictable VRAM cleanup |
+| **Cleanup**        |            -             |                     `free_guard`                     | Garbage-collect and clear Torch caches on release                       |
 
 ---
 
 ### 🧰 `OpGuardBase`: all-in-one wrapper object
 
-If you’d rather not wire these together yourself, subclass `OpGuardBase`.  
+If you’d rather not wire these together yourself, subclass `OpGuardBase`.
 It gives you **all of the above** in one clean abstraction:
 
-* device/dtype/variant resolution  
-* automatic precision fallback (bf16 → fp16 → fp32)  
-* local-only caching and export management  
-* deterministic AMP / grad / VRAM cleanup  
-* trace-scrubbing exception handling  
+- device/dtype/variant resolution
+- automatic precision fallback (bf16 → fp16 → fp32)
+- local-only caching and export management
+- deterministic AMP / grad / VRAM cleanup
+- trace-scrubbing exception handling
 
 ---
 
@@ -85,12 +82,12 @@ with TinyVAE() as vae:
 
 ### 🌟 What you get
 
-* **Automatic precision fallback** — picks the best supported dtype  
-* **Local-only caching** — no accidental network pulls in production  
-* **Guarded execution** — detaches outputs and clears VRAM on every call  
-* **Predictable cleanup** — no zombie tensors, no restarts  
-* **Revision-aware exports** — protects you from silent upstream changes  
-* **Unified API** — works with Diffusers, Transformers, or your own models  
+- **Automatic precision fallback** — picks the best supported dtype
+- **Local-only caching** — no accidental network pulls in production
+- **Guarded execution** — detaches outputs and clears VRAM on every call
+- **Predictable cleanup** — no zombie tensors, no restarts
+- **Revision-aware exports** — protects you from silent upstream changes
+- **Unified API** — works with Diffusers, Transformers, or your own models
 
 ---
 
