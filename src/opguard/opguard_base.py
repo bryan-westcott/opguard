@@ -143,11 +143,11 @@ class OpGuardBase(ABC):
     # Whether gradients are needed
     NEED_GRADS: ClassVar[bool] = False
 
-    def _caller(self, *, input_raw: Any) -> Any:
+    def _caller(self, *, input_raw: Any, **kwargs) -> Any:
         """Actual call line inside __call__ safe wrapper."""
-        input_proc = self._preprocess(input_raw=input_raw)
-        output_raw = self._predict(input_proc=input_proc)
-        return self._postprocess(output_raw=output_raw)  # output_proc
+        input_proc = self._preprocess(input_raw=input_raw, **kwargs)
+        output_raw = self._predict(input_proc=input_proc, **kwargs)
+        return self._postprocess(output_raw=output_raw, **kwargs)  # output_proc
 
     @abstractmethod
     def _load_detector(self, *, model_id_overrde: str | None = None, **kwargs) -> Any:
