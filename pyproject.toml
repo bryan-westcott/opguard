@@ -119,6 +119,7 @@ build-backend = "setuptools.build_meta"
 [project.scripts]
 pytest-smoke = "opguard.tests.smoke:smoke"
 pytest-slow = "opguard.tests.smoke:slow"
+pytest-nlp = "opguard.tests.smoke:nlp"
 
 # Pytest config (minimal and portable)
 [tool.pytest.ini_options]
@@ -126,7 +127,7 @@ pytest-slow = "opguard.tests.smoke:slow"
 testpaths = ["src/opguard/tests"]
 python_files = ["smoke.py"]
 # collect functions for possible use
-python_functions = ["smoke", "slow"]
+python_functions = ["smoke", "slow", "nlp"]
 # Default flags: no stdout spam, show locals on failure, fail on unknown marks
 # Note: for now just runs smoke test in plain pytest
 #       enable/disable slow in plain by removing/retaining: '-m "not slow"'
@@ -149,6 +150,7 @@ addopts = """
 markers = [
     "smoke: fast smoke tests that run on CPU",
     "slow: opt-in slow tests, includes GPU and Bfloat16",
+    "nlp: opt-in blip1 tests,"
 ]
 
 [tool.uv]

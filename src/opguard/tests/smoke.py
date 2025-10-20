@@ -6,6 +6,8 @@ To run, with debugging:     uv run pytest --log-cli-level=DEBUG --capture=no
 # We do not care about LSP substitutability, OpGuard is not used directly
 # mypy: disable-error-code=override
 
+from typing import Any
+
 import PIL
 import pytest
 import requests
@@ -14,6 +16,7 @@ from huggingface_hub import hf_hub_download
 from loguru import logger
 from PIL.Image import Image as PILImage
 
+from opguard.nlp import Blip1, Blip2
 from opguard.vae import TinyVaeForSd
 
 
@@ -189,6 +192,38 @@ def bfloat() -> None:
         logger.warning("Unable to run BFLOAT16 tests due to loack of CUDA/GPU")
 
 
+def blip(*, test_image: PILImage | None = None, test_blip1: bool = True, test_blip2: bool = True) -> dict[str, Any]:
+    """Test NLP objects."""
+    test_image = test_image or load_test_image()
+    return_blip1 = {}
+    return_blip2 = {}
+    if test_blip2:
+        with Blip2() as blip2:
+            caption_blip2 = blip2(input_raw=test_image)
+            logger.info(f"blip2: {caption_blip2}")
+            caption_blip2_conditional = blip2(
+                input_raw=test_image,
+                text="Question: What color is her hair? Answer:",
+            )
+            logger.info(f"blip2 (question): {caption_blip2_conditional}")
+            return_blip2 = {
+                "caption_blip2": caption_blip2,
+                "caption_blip2_conditional": caption_blip2_conditional,
+            }
+    if test_blip1:
+        with Blip1() as blip1:
+            caption_blip1 = blip1(input_raw=test_image)
+            logger.info(f"blip1 (blip1): {caption_blip1}")
+            text_blip1 = "Hair Color"
+            caption_blip1_conditional = blip1(input_raw=test_image, text=text_blip1)
+            logger.info(f'blip1 (text="{text_blip1}"): {caption_blip1_conditional}')
+            return_blip1 = {
+                "caption_blip1": caption_blip1,
+                "caption_blip1_conditional": caption_blip1_conditional,
+            }
+    return return_blip1 | return_blip2
+
+
 @pytest.mark.smoke
 def smoke() -> None:
     """Simplest run (no CUDA/GPU needed)."""
@@ -200,9 +235,16 @@ def smoke() -> None:
     )
 
 
+@pytest.mark.nlp
+def nlp() -> None:
+    """Test BLIP1 captioner."""
+    blip(test_blip2=False)
+
+
 @pytest.mark.slow
 def slow() -> None:
     """Slower tests, checks basic caching and multiple precision/devices."""
     cpu()
     gpu()
     bfloat()
+    nlp()
