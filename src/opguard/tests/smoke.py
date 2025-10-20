@@ -8,10 +8,16 @@ To run, with debugging:     uv run pytest --log-cli-level=DEBUG --capture=no
 
 import pytest
 import torch
-from diffusers import AutoencoderTiny
 from loguru import logger
+import requests
+import PIL
+from PIL.Image import Image as PILImage
+
+from diffusers import AutoencoderTiny
+from huggingface_hub import hf_hub_download
 
 from opguard.opguard_base import OpGuardBase
+from opguard.vae import TinyVaeForSd
 
 
 class Smoke(OpGuardBase):
@@ -76,6 +82,131 @@ class Smoke(OpGuardBase):
               typically the _preprocess would do the input.to(device, dtype)
         """
         return self._decode(latent=self._encode(image=input_proc))
+def load_test_image(
+    *,
+    hub_repo_id: str | None = None,
+    hub_filename: str | None = None,
+    hub_revision: str | None = None,
+    final_size: tuple[int, int] | None = None,
+    local_files_only: bool = False,
+    allow_direct_download: bool = True,
+    image_passthrough: PILImage | None = None,
+    image_url_override: str | None = None,
+) -> PILImage:
+    """Test image loader.
+
+    Load a small test image with Hugging Face Hub caching and an optional
+    direct-URL fallback. A pre-supplied image can bypass all I/O.
+
+    Resolution order
+    1) If `image_passthrough` is provided, return it as-is.
+    2) Try `hf_hub_download(repo_type='dataset')` for
+       `{hub_repo_id}::{hub_filename}` at `hub_revision`
+       (honors `local_files_only`).
+    3) If that fails and `allow_direct_download=True`, fetch via HTTPS from
+       `image_url_override` or a resolve-URL derived from the Hub fields.
+
+    Parameters
+    ----------
+    hub_repo_id : str | None, default="YiYiXu/testing-images"
+        Dataset repo containing the image.
+    hub_filename : str | None, default="women_input.png"
+        File path/name within the dataset repo.
+    hub_revision : str | None, default="main"
+        Branch/tag/commit. For reproducibility, prefer a commit hash.
+    final_size : tuple[int, int] | None, optional
+        If given, resize to (width, height) before returning.
+    local_files_only : bool, default=False
+        Passed to `hf_hub_download`. When True, only uses files already in the
+        local HF cache (no network).
+    allow_direct_download : bool, default=True
+        Whether to attempt an HTTPS fallback if the Hub fetch fails.
+    image_passthrough : PIL.Image.Image | None, optional
+        Pre-loaded image to return immediately (skips Hub/HTTP).
+    image_url_override : str | None, optional
+        Explicit HTTPS URL to use for the fallback download. If not set, a
+        resolve-URL is constructed from the Hub fields.
+
+    Returns
+    -------
+    PIL.Image.Image
+        An RGB image, possibly resized.
+
+    Raises
+    ------
+    ValueError
+        If the image cannot be obtained from any source.
+
+    Notes
+    -----
+    - To enable offline use (`local_files_only=True`), call at least once with
+      `local_files_only=False` so the asset is cached locally
+      (typically under `~/.cache/huggingface/hub`).
+    - `hub_revision` should be pinned to a commit hash for deterministic tests.
+
+    Examples
+    --------
+    # Online first run (caches file), offline thereafter
+    img = load_test_image(local_files_only=False)
+    img_offline = load_test_image(local_files_only=True)
+
+    # Use a specific dataset file and commit
+    img = load_test_image(
+        hub_repo_id="hf-internal-testing/diffusers-images",
+        hub_filename="flag/mini.png",
+        hub_revision="7f6d1c1",  # commit hash
+    )
+
+    # Provide your own image to bypass I/O
+    img = load_test_image(image_passthrough=PIL.Image.new("RGB", (64, 64), "white"))
+    """
+    # ruff: noqa: PLR0913  (this is a test helper)
+    # Huggingface hub repo information
+    hub_repo_id = hub_repo_id or "YiYiXu/testing-images"
+    hub_filename = hub_filename or "women_input.png"
+    hub_revision = hub_revision or "main"
+    # Backup method, construct direct URL from hub information
+    image_url = (
+        image_url_override or f"https://huggingface.co/datasets/{hub_repo_id}/resolve/{hub_revision}/{hub_filename}"
+    )
+
+    # Obtain from passthrough if provided
+    image = image_passthrough
+
+    if not image:
+        # first try huggingface hub module,
+        # will download and cache on very first call
+        try:
+            path = hf_hub_download(
+                repo_id=hub_repo_id,
+                filename=hub_filename,
+                repo_type="dataset",  # important: it's a dataset repo
+                revision=hub_revision,  # or pin a commit hash for reproducibility
+                local_files_only=local_files_only,
+            )
+            image = PIL.Image.open(path).convert("RGB")
+            logger.debug("Obtained test image from HF Hub download or cache")
+        except RuntimeError:
+            logger.warning("HF Hub Download failed")
+
+    if not image and allow_direct_download:
+        # then try direct download, constructing URL based on hub info
+        try:
+            image = PIL.Image.open(requests.get(image_url, stream=True, timeout=(3.0, 30.0)).raw)
+            logger.debug("Obtained test image from direct URL download")
+        except RuntimeError:
+            logger.warning("Direct download failed")
+
+    if not image:
+        # No alternatives remaining
+        message = "Unable to obtain test image"
+        raise ValueError(message)
+
+    if final_size:
+        # Resize if needed
+        image = image.resize(final_size)
+
+    return image
 
 
 def _tiny_vae_roundtrip(*, device: str | torch.device, dtype: torch.dtype, **kwargs) -> None:
