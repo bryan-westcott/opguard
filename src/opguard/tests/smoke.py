@@ -8,6 +8,7 @@ To run, with debugging:     uv run pytest --log-cli-level=DEBUG --capture=no
 
 from typing import Any
 
+import numpy as np
 import PIL
 import pytest
 import requests
@@ -16,6 +17,7 @@ from huggingface_hub import hf_hub_download
 from loguru import logger
 from PIL.Image import Image as PILImage
 
+from opguard.controlnets import Dwpose, Hed, MarigoldDepth, MarigoldNormals, Tile
 from opguard.nlp import Blip1, Blip2
 from opguard.vae import TinyVaeForSd
 
@@ -224,6 +226,23 @@ def blip(*, test_image: PILImage | None = None, test_blip1: bool = True, test_bl
     return return_blip1 | return_blip2
 
 
+def controlnets(test_image: PILImage | None = None) -> dict[str, Any]:
+    """Test ControlNets objects."""
+    test_image = test_image or load_test_image()
+    display_size = (512, 512)
+    control_types = (Tile, Hed, MarigoldDepth, MarigoldNormals, Dwpose)
+    control_outputs = []
+    return_control = {}
+    for control_type in control_types:
+        logger.debug(f"Running test: {control_type}")
+
+        with control_type() as control:
+            control_output = control(input_raw=test_image).resize(display_size)
+            control_outputs.append(control_output)
+            return_control[control.name] = control_output
+    return return_control
+
+
 @pytest.mark.smoke
 def smoke() -> None:
     """Simplest run (no CUDA/GPU needed)."""
@@ -248,3 +267,4 @@ def slow() -> None:
     gpu()
     bfloat()
     nlp()
+    controlnets()
