@@ -6,15 +6,14 @@ To run, with debugging:     uv run pytest --log-cli-level=DEBUG --capture=no
 # We do not care about LSP substitutability, OpGuard is not used directly
 # mypy: disable-error-code=override
 
-import pytest
-import torch
-from loguru import logger
-import requests
 import PIL
-from PIL.Image import Image as PILImage
-
+import pytest
+import requests
+import torch
 from diffusers import AutoencoderTiny
 from huggingface_hub import hf_hub_download
+from loguru import logger
+from PIL.Image import Image as PILImage
 
 from opguard.opguard_base import OpGuardBase
 from opguard.vae import TinyVaeForSd
@@ -82,6 +81,8 @@ class Smoke(OpGuardBase):
               typically the _preprocess would do the input.to(device, dtype)
         """
         return self._decode(latent=self._encode(image=input_proc))
+
+
 def load_test_image(
     *,
     hub_repo_id: str | None = None,
@@ -214,12 +215,18 @@ def _tiny_vae_roundtrip(*, device: str | torch.device, dtype: torch.dtype, **kwa
     # ruff: noqa: ANN003  (too restrictive on tests)
     batch: int = 2
     logger.info(f"Running smoke test with {device=}, {dtype=}, {kwargs=}")
-    with Smoke(device_override=device, dtype_override=dtype, **kwargs) as smoke:
-        size = (batch, 3, 512, 512)
-        input_tensor: torch.FloatTensor = torch.rand(size=size, device=smoke.device, dtype=smoke.dtype) * 2 - 1
-        output_tensor: torch.FloatTensor = smoke(input_raw=input_tensor)
 
-    assert input_tensor.shape == output_tensor.shape
+    if False:
+        with Smoke(device_override=device, dtype_override=dtype, **kwargs) as smoke:
+            size = (batch, 3, 512, 512)
+            input_tensor: torch.FloatTensor = torch.rand(size=size, device=smoke.device, dtype=smoke.dtype) * 2 - 1
+            output_tensor: torch.FloatTensor = smoke(input_raw=input_tensor)
+            assert input_tensor.shape == output_tensor.shape
+
+    with TinyVaeForSd(device_override=device, dtype_override=dtype, **kwargs) as vae:
+        input_image = load_test_image(final_size=(512, 512), allow_direct_download=False)
+        output_image = vae(input_raw=input_image, mode="encode-decode")
+        assert input_image.size == output_image.size
 
 
 def _tiny_vae_roundtrip_sequence(*, device: str | torch.device, dtype: torch.dtype) -> None:
