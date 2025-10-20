@@ -10,77 +10,11 @@ import PIL
 import pytest
 import requests
 import torch
-from diffusers import AutoencoderTiny
 from huggingface_hub import hf_hub_download
 from loguru import logger
 from PIL.Image import Image as PILImage
 
-from opguard.opguard_base import OpGuardBase
 from opguard.vae import TinyVaeForSd
-
-
-class Smoke(OpGuardBase):
-    """Tiny VAE for SD."""
-
-    NAME = "tiny-vae"
-    MODEL_ID = "madebyollin/taesd"
-    REVISION = "main"
-    DEFAULT_DEVICE = "cpu"
-    DEFAULT_DTYPE = torch.float32
-
-    def _load_detector(self, **kwargs: object) -> AutoencoderTiny:
-        # ruff: noqa: ARG002
-        return AutoencoderTiny.from_pretrained(
-            self.model_id,
-            torch_dtype=self.dtype,
-            local_files_only=self.local_files_only,
-            revision=self.revision,
-        ).to(self.device)
-
-    def _encode(self, *, image: torch.FloatTensor) -> torch.FloatTensor:
-        """Encode image.
-
-        Input:
-          input_proc:
-            represents: batch (B) of color (3-channel) images
-            shape: (B, 3, H, W),
-            values ∈ [-1, 1]
-        Output:
-          output_raw:
-            represents: batch (B) of downsampled latents (4-channel)
-            shape: (B, 4, H//factor, W//factor),
-            values ∈ R (unbounded),
-            factor ∈ {8,16}
-        """
-        # (N, latent_channels, H/8, W/8) for SD1.x TAEs
-        return self._detector.encode(image.to(self.device, self.dtype)).latents
-
-    def _decode(self, *, latent: torch.FloatTensor) -> torch.FloatTensor:
-        """Decode image.
-
-        Input:
-          output_raw:
-            represents: batch (B) of downsampled latents (4-channel)
-            shape: (B, 4, H//factor, W//factor),
-            values ∈ R (unbounded),
-            factor ∈ {8,16}
-        Output:
-          input_proc:
-            represents: batch (B) of color (3-channel) images
-            shape: (B, 3, H, W),
-            values ∈ [-1, 1]
-        """
-        # (N, latent_channels, H/8, W/8) for SD1.x TAEs
-        return self._detector.decode(latent.to(self.device, self.dtype)).sample
-
-    def _predict(self, *, input_proc: torch.FloatTensor) -> torch.FloatTensor:
-        """Encode-then-decode round trip.
-
-        Note: output should closely match input
-        Note: two subsequent calls (encode-decode) is atypical for this library,
-              typically the _preprocess would do the input.to(device, dtype)
-        """
-        return self._decode(latent=self._encode(image=input_proc))
 
 
 def load_test_image(
@@ -213,20 +147,12 @@ def load_test_image(
 def _tiny_vae_roundtrip(*, device: str | torch.device, dtype: torch.dtype, **kwargs) -> None:
     """Tiny round-trip VAE that exercises OpGuard with various device/dtypes."""
     # ruff: noqa: ANN003  (too restrictive on tests)
-    batch: int = 2
     logger.info(f"Running smoke test with {device=}, {dtype=}, {kwargs=}")
-
-    if False:
-        with Smoke(device_override=device, dtype_override=dtype, **kwargs) as smoke:
-            size = (batch, 3, 512, 512)
-            input_tensor: torch.FloatTensor = torch.rand(size=size, device=smoke.device, dtype=smoke.dtype) * 2 - 1
-            output_tensor: torch.FloatTensor = smoke(input_raw=input_tensor)
-            assert input_tensor.shape == output_tensor.shape
 
     with TinyVaeForSd(device_override=device, dtype_override=dtype, **kwargs) as vae:
         input_image = load_test_image(final_size=(512, 512), allow_direct_download=False)
         output_image = vae(input_raw=input_image, mode="encode-decode")
-        assert input_image.size == output_image.size
+    assert input_image.size == output_image.size
 
 
 def _tiny_vae_roundtrip_sequence(*, device: str | torch.device, dtype: torch.dtype) -> None:
