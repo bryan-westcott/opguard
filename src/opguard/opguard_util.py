@@ -177,11 +177,11 @@ def detach_exception_tracebacks(exc: BaseException, *, deep: bool = True) -> Non
 MIN_BFLOAT16_COMPUTE_CAPABILITY_MAJOR = 8  # Ampere+
 
 
-def normalize_device(d: DeviceLike) -> torch.device:
+def normalize_device(device_like: DeviceLike) -> torch.device:
     """Normalize a device spec into a `torch.device('cuda:N')`.
 
     Args:
-        d:
+        device:
             Device spec. Accepted forms:
             - `torch.device('cuda:N')`
             - integer CUDA index (e.g., `0` → `'cuda:0'`)
@@ -198,15 +198,16 @@ def normalize_device(d: DeviceLike) -> torch.device:
           `torch.device` construction itself; callers should check
           `torch.cuda.is_available()` when needed.
     """
-    if isinstance(d, torch.device):
-        return d
-    if isinstance(d, int):
-        return torch.device(f"cuda:{d}")
-    s = str(d)
-    if s == "cuda":
-        idx = torch.cuda.current_device() if torch.cuda.is_available() else 0
-        return torch.device(f"cuda:{idx}")
-    return torch.device(s)
+    if isinstance(device_like, torch.device):
+        return device_like
+    if isinstance(device_like, int):
+        return torch.device(f"cuda:{device_like}")
+    device_like_str = str(device_like)
+    if device_like_str == "cuda":
+        device_index = torch.cuda.current_device() if torch.cuda.is_available() else 0
+        return torch.device(f"cuda:{device_index}")
+    # will handle "cpu" and anything else
+    return torch.device(device_like_str)
 
 
 def device_supports_bfloat16(device: DeviceLike) -> bool:
