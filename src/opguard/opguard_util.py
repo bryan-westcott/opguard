@@ -1001,14 +1001,19 @@ def device_guard(
     device: DeviceLike | None,
     device_map: DeviceMapLike | None,
     device_list_override: list[torch.device] | None = None,
-) -> list[torch.device]:
-    """Resolve a deterministic list of devices from `device` and/or `device_map`.
+    device_normalized_override: torch.device | None = None,
+) -> tuple[list[torch.device], torch.device]:
+    """Resolve a deterministic list of devices from `device` and/or `device_map` and normalize devices.
+
+    Goals:
+        * Provide normalized device - a torch.device with index, not strings or generic "cuda" device
+        * Generate a deterministic list of devices (device_list) for VRAM management
+        * Provide sane defaults and sanity checks for typical 0-1 GPU configurations
 
     Args:
         device:
-            A single CPU/CUDA device spec (e.g., 0, "cuda:1",
-            torch.device("cuda:0")). When provided together with `device_map`,
-            this device will be included in the result.
+            A single CPU/CUDA device spec (e.g., 0, "cuda", "cuda:1",
+            torch.device("cuda:0")).
         device_map:
             Placement hint for multi-GPU workloads.
             - "auto": include **all visible CPU/CUDA devices** in index order.
@@ -1016,47 +1021,70 @@ def device_guard(
             Other mapping forms are not interpreted here.
         device_list_override:
             manual setting of device_list, e.g., from prior call to this context manager
+        device_normalized_override:
+            manual setting of device_normalized, e.g., from prior call to this context manager
 
     Returns:
-        list[torch.device]: Normalized CPU/CUDA device(s) to use. If both `device`
-        and `device_map="auto"` are provided, the result is the **union** of the
-        explicit device and all visible devices (de-duplicated).
+        device_list (list[torch.device]) Normalized CPU/CUDA device(s) to use.
+        device_normalized (torch.device): Normalized CPU/CUDA device
 
     Notes:
-        - Raises if CUDA is unavailable in non-cpu mode or if neither `device`
-          nor `device_map` is provided.
+        - Raises if:
+            - CUDA is unavailable in non-cpu mode
+            - if neither `device` nor `device_map` is provided
+        - Allows overrides if previously computed, while retaining lightweight sanity checks
     """
-    if device_list_override:
+    # Check for neither device_normalized nor device map
+    if (device is None) and (device_normalized_override is None) and (device_map is None):
+        message = "Must specify at least one of `device`, `device_overide` and/or `device_map`."
+
+    if device_normalized_override:
+        # Override input
+        device_normalized = device
+    elif device:
+        device_normalized = normalize_device(device)
+    else:
+        # no device provided
+        device_normalized = None
+
+    # Check for no CUDA and set sane hardware-based defaults
+    if not torch.cuda.is_available():
+        # if non-cpu device requested error
+        if device_normalized and (device_normalized.type != "cpu"):
+            message = "when CUDA is not available device must be 'cpu'."
+            raise RuntimeError(message)
+        # otherwise, fallback to cpu
+        device_normalized = torch.device("cpu")
+    elif not device:
+        # sane hardware-dependent default if no device provided
+        device_normalized = torch.device("cuda")
+
+    # Just return if we already have a device_list
+    if device_list_override is not None:
         # Manual override, e.g., from prior call to this manager
         logger.debug(f"Using {device_list_override=}")
-        return device_list_override
+        return device_list_override, device_normalized
 
-    if (device != "cpu") and (not torch.cuda.is_available()):
-        message = "CUDA is not available and it is not 'cpu'."
-        raise RuntimeError(message)
+    # Only "auto" or None supported for now
+    if (device_map is not None) and (device_map != "auto"):
+        message = "Only device_map='auto' or None is supported."
+        raise ValueError(message)
 
-    if device_map is not None:
-        if device_map != "auto":
-            message = "Only device_map='auto' or None is supported."
-            raise ValueError(message)
-        if device == "cpu":
-            device_list = [torch.device("cpu")]
-        else:
-            num_cuda = torch.cuda.device_count()
-            if num_cuda == 0:
-                message = "No CUDA devices visible."
-                raise RuntimeError(message)
-            device_list = [torch.device(f"cuda:{i}") for i in range(num_cuda)]
+    # For cpu-only work loads, the device list is always a single cpu device
+    # For systems with only one visible/available device, only "cuda:0" is valid
+    if torch.cuda.device_count() <= 1:
+        return [device_normalized], device_normalized
+
+    # If device_map == "auto", then list all available cuda devices
+    # Note: a check for no-cuda was already
+    if (device_map == "auto") and torch.cuda.is_available():
+        device_list = [torch.device(f"cuda:{i}") for i in range(torch.cuda.device_count())]
         logger.debug(f"Setting {device_list=} from {device_map=} in device_guard")
-        return device_list
+        return device_list, device_normalized
 
-    if device is not None:
-        dev = normalize_device(device)
-        device_list = [dev]
-        logger.debug(f"Setting {device_list=} from {device=} in device_guard")
-        return device_list
-    message = "Must specify `device` and/or `device_map`."
+    message = "Unable to determine device_list and device_normalized form inputs and system."
     raise ValueError(message)
+
 
 
 def dtype_guard(
