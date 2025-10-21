@@ -1100,7 +1100,7 @@ def dtype_guard(
             Normalized CPU/CUDA devices to be used for computation (e.g.,
             [torch.device('cuda:0'), torch.device('cuda:1')]).
         dtype_desired:
-            The preferred compute dtype to try first.
+            The preferred compute dtype to try first
         dtype_override:
             Manually set dtype, e.g., from previous call to this context manager
 
@@ -1119,28 +1119,31 @@ def dtype_guard(
         - The selection is deterministic given `device_list`.
 
     Raises:
-        RuntimeError: If a reduced dtype is requested but CUDA is unavailable.
-        ValueError: If `dtype_desired` is not one of {bf16, fp16, fp32}.
+        Warning: if dtype fallback required based on compute capabilities
+        ValueError: dtype other than float16, bfloat16 or float32
+            (Add fp8 or fp4 with customized model loader)
     """
     if dtype_override:
         # Manual override, e.g., from prior call to this manager
         logger.debug(f"Using {dtype_override=}")
         return dtype_override
-    if dtype_desired is torch.float32:
-        dtype = torch.float32
-    elif not torch.cuda.is_available():
-        message = "Reduced dtypes require CUDA; only float32 on CPU."
-        raise RuntimeError(message)
-    elif dtype_desired is torch.float16:
-        dtype = torch.float16
-    elif dtype_desired is torch.bfloat16:
-        all_bf16 = all(device_supports_bfloat16(d) for d in device_list)
-        dtype = torch.bfloat16 if all_bf16 else torch.float16
-    else:
-        message = f"Unsupported dtype requested: {dtype_desired!r}"
-        raise ValueError(message)
-    logger.debug(f"Setting {dtype=} from {dtype_desired=}, for {device_list=} in dtype_guard")
-    return dtype
+
+    # If bfloat16 is desired, check that it is available
+    if dtype_desired == torch.bfloat16:
+        if not all(device_supports_bfloat16(d) for d in device_list):
+            logger.warning("All devices do not support dtype_desired=='bfloat16', falling back to float16")
+            return torch.float16
+        return torch.bfloat16
+
+    # Check if not in cpu mode
+    if dtype_desired == torch.float16:
+        if any(device.type == "cpu" for device in device_list):
+            logger.warning("CPU devices do not support dtype_desired=='float16', falling back to float32")
+            return torch.float32
+        return torch.float16
+
+    return torch.float32
+
 
 
 def variant_guard(
