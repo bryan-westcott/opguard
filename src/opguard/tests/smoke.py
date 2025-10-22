@@ -239,7 +239,10 @@ def sdxl() -> None:
 
 
 def sd_tiny() -> None:
-    """Test SD 1.5."""
+    """Test SD 21 Nano 4-Bit Quantized that runs in 2 GiB VRAM.
+
+    Warning: designed for demo tests purposes only!
+    """
     prompt = "An astronaut on a horse on the moon."
     with SdTinyNanoTextToImage() as sd:
         image = sd(input_raw=None, prompt=prompt, height=128, width=128)
