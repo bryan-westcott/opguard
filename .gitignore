@@ -38,3 +38,4 @@ lint_result.txt
 
 certs/
 .env
+.coverage
