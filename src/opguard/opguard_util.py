@@ -1760,14 +1760,18 @@ def init_guard(
     revision: str | None = None,
     local_hfhub_variant_check_only: bool = False,
     device_list_override: list[torch.device] | None = None,
+    device_normalized_override: torch.device | None = None,
     dtype_override: torch.dtype | None = None,
     variant_override: str | None = None,
-) -> tuple[list[str], torch.dtype, str]:
+) -> tuple[list[str], torch.device, torch.dtype, str, DeviceMapLike]:
     """Aggregate context manager for init: device_guard, dtype_guard, variant_guard."""
-    device_list: list[torch.device] = device_guard(
+    device_list: list[torch.device]
+    device_normalized: torch.device
+    device_list, device_normalized = device_guard(
         device=device,
         device_map=device_map,
         device_list_override=device_list_override,
+        device_normalized_override=device_normalized_override,
     )
     effective_dtype: torch.dtype = dtype_guard(
         device_list=device_list,
@@ -1781,7 +1785,7 @@ def init_guard(
         variant_override=variant_override,
         local_hfhub_variant_check_only=local_hfhub_variant_check_only,
     )
-    return device_list, effective_dtype, variant
+    return device_list, device_normalized, effective_dtype, variant, device_map
 
 
 def load_guard(
