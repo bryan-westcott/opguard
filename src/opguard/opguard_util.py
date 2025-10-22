@@ -935,6 +935,12 @@ def _cache_export_model(
         if force_export_refresh:
             message = "Must provide export_name to use force_export_refresh==True"
             raise ValueError(message)
+    if not hasattr(model, "save_pretrained"):
+        logger.warning("Bypassing load_guard export due to no save_pretrained")
+        if force_export_refresh:
+            message = "Cannot export non huggingface model for force_export_refresh==True"
+            raise ValueError(message)
+
 
     # No attempt to re-export it
     if export_dir and (not match or force_export_refresh):
