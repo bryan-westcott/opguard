@@ -60,6 +60,8 @@ Minimal example: this will apply all the guards (with default options)
 #   Note: this must be in all derived classe to avoid contravariance errors
 
 from abc import ABC, abstractmethod
+from collections.abc import Generator
+from contextlib import contextmanager
 from typing import Any, ClassVar
 
 import torch
@@ -397,12 +399,8 @@ class OpGuardBase(ABC):
 
         Note: Will also detach (to cpu) all outputs to avoid dangling references tying up VRAM
         """
-        # Private stream to keep track of for synchronization
-        try:
-            # Lazy loader
-            if self._is_freed:
-                logger.debug("Lazy loading models on call")
-                self._load()
+        # ruff: noqa: SIM117  (clarity is better)
+        with self.lazy_loader_context():
             # Autocast for proper precision, accounting for gradient needs, also stream synchronize
             # Note: dtype and device guard are already pre-checked in init
             with call_guard(
@@ -416,6 +414,29 @@ class OpGuardBase(ABC):
             ) as guarded_call:
                 # Note: cache_guard will handle detaching outptu and tracebacks
                 return guarded_call(input_raw=input_raw, **kwargs)
+
+    @property
+    def detector(self) -> Any:
+        """Retrieve model, lazy loading if needed.
+
+        Note: Will also detach (to cpu) all outputs to avoid dangling references tying up VRAM
+        """
+        with self.lazy_loader_context():
+            return self._detector
+
+    @contextmanager
+    def lazy_loader_context(self) -> Generator[None, None, None]:
+        """Lazy loader context manager.
+
+        For calling _load() and _free() in lazy mode based on keep_warm or _in_context.
+        Useful for lazy caller and model property getters.
+        """
+        try:
+            # Lazy loader
+            if self._is_freed:
+                logger.debug("Lazy loading models on call")
+                self._load()
+            yield None
         finally:
             # Agressively free up VRAM if desired
             # Ensure free as expected even on error
