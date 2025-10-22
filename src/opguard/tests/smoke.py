@@ -19,6 +19,7 @@ from PIL.Image import Image as PILImage
 
 from opguard.controlnets import Dwpose, Hed, MarigoldDepth, MarigoldNormals, Tile
 from opguard.nlp import Blip1, Blip2
+from opguard.sd import SdTinyNanoTextToImage, SdxlTextToImage
 from opguard.vae import TinyVaeForSd
 
 
@@ -226,6 +227,29 @@ def blip(*, test_image: PILImage | None = None, test_blip1: bool = True, test_bl
     return return_blip1 | return_blip2
 
 
+def sdxl() -> None:
+    """Test SDXL."""
+    prompt = "An astronaut on a horse on the moon."
+    with SdxlTextToImage() as sdxl:
+        image = sdxl(prompt=prompt)
+    # check for image output, with some width/height and not all zeros.
+    assert isinstance(image, PILImage)
+    assert all(dim > 0 for dim in image.size)
+    assert len(np.unique(np.array(image).ravel())) > 1
+
+
+def sd_tiny() -> None:
+    """Test SD 1.5."""
+    prompt = "An astronaut on a horse on the moon."
+    with SdTinyNanoTextToImage() as sd:
+        image = sd(input_raw=None, prompt=prompt, height=128, width=128)
+    # check for image output, with some width/height and not all zeros.
+    assert isinstance(image, PILImage)
+    assert all(dim > 0 for dim in image.size)
+    assert len(np.unique(np.array(image).ravel())) > 1
+    image.save("test-sd21.png")
+
+
 def controlnets(test_image: PILImage | None = None) -> dict[str, Any]:
     """Test ControlNets objects."""
     test_image = test_image or load_test_image()
@@ -258,6 +282,18 @@ def smoke() -> None:
 def nlp() -> None:
     """Test BLIP1 captioner."""
     blip(test_blip2=False)
+
+
+@pytest.mark.sd
+def sd() -> None:
+    """Test BLIP1 captioner."""
+    sd_tiny()
+
+
+@pytest.mark.controlnets
+def control() -> None:
+    """Test various controlnets."""
+    controlnets()
 
 
 @pytest.mark.slow

@@ -120,6 +120,7 @@ build-backend = "setuptools.build_meta"
 pytest-smoke = "opguard.tests.smoke:smoke"
 pytest-slow = "opguard.tests.smoke:slow"
 pytest-nlp = "opguard.tests.smoke:nlp"
+pytest-sd = "opguard.tests.smoke:sd"
 pytest-controlnets = "opguard.tests.smoke:controlnets"
 
 # Pytest config (minimal and portable)
@@ -128,7 +129,7 @@ pytest-controlnets = "opguard.tests.smoke:controlnets"
 testpaths = ["src/opguard/tests"]
 python_files = ["smoke.py"]
 # collect functions for possible use
-python_functions = ["smoke", "slow", "nlp", "controlnets"]
+python_functions = ["smoke", "slow", "nlp", "sd", "controlnets"]
 # Default flags: no stdout spam, show locals on failure, fail on unknown marks
 # Note: for now just runs smoke test in plain pytest
 #       enable/disable slow in plain by removing/retaining: '-m "not slow"'
@@ -152,6 +153,7 @@ markers = [
     "smoke: fast smoke tests that run on CPU",
     "slow: opt-in slow tests, includes GPU and Bfloat16",
     "nlp: opt-in blip1 tests",
+    "sd: opt-in sdxl tests",
     "controlnets: opt-in controlnets tests",
 ]
 
