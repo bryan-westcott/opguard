@@ -231,6 +231,7 @@ class OpGuardBase(ABC):
                   with MyGuard(...) as g:
                       out = g(input_raw=...)
         """
+        # ruff: noqa: PLR0913  (configurable util with sane defaults)
         # A placeholder for overriding MODEL_ID without mutating class
         self._model_id_override: str | None = None
 
@@ -254,17 +255,11 @@ class OpGuardBase(ABC):
         self.keep_warm: bool = keep_warm
         self.sanitize_all_exceptions: bool = True
 
-        # ruff: noqa: PLR0913  (base class with lots of configurability)
-        # keep track of inputs/preferences
-        self.device: DeviceLike = device_override or type(self).DEFAULT_DEVICE
-        self.device_map: DeviceMapLike = device_map_override or type(self).DEFAULT_DEVICE_MAP
-        self.dtype_preference: torch.dtype = dtype_override or type(self).DTYPE_PREFERENCE
-
         # initialize dtype, variant, device_list based on runtime hardware
-        self.device_list, self.dtype, self.variant = init_guard(
-            device=self.device,
-            device_map=self.device_map,
-            dtype=self.dtype_preference,
+        self.device_list, self.device, self.dtype, self.variant, self.device_map = init_guard(
+            device=device_override or type(self).DEFAULT_DEVICE,
+            device_map=device_map_override or type(self).DEFAULT_DEVICE_MAP,
+            dtype=dtype_override or type(self).DTYPE_PREFERENCE,
             model_id=self.model_id,
             revision=self.revision,
             local_hfhub_variant_check_only=local_hfhub_variant_check_only,
