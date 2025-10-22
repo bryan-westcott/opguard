@@ -1095,6 +1095,11 @@ def dtype_guard(
 ) -> torch.dtype:
     """Validate the requested dtype against the CPU/CUDA devices and select best.
 
+    Quantization note:
+        Even when quantizing to FP4/FP8 with libraries such as bits-and-bytes,
+        the dtype will typically remain bfloat16/float16.  Note also that cache_guard
+        may still store the BnB quantized models with a smaller size for subsequent loads.
+
     Args:
         device_list:
             Normalized CPU/CUDA devices to be used for computation (e.g.,
