@@ -144,6 +144,8 @@ class OpGuardBase(ABC):
     DTYPE_PREFERENCE: ClassVar[torch.dtype] = torch.bfloat16
     # Whether gradients are needed
     NEED_GRADS: ClassVar[bool] = False
+    # Whether class is callable (only False in special cases, e.g., pipe components)
+    CALLABLE: ClassVar[bool] = True
 
     def _caller(self, *, input_raw: Any, **kwargs) -> Any:
         """Actual call line inside __call__ safe wrapper."""
@@ -285,6 +287,7 @@ class OpGuardBase(ABC):
             "MODEL_ID",
             "REVISION",
             "NEED_GRADS",
+            "CALLABLE",
             "DEFAULT_DEVICE",
             "DEFAULT_DEVICE_MAP",
             "DTYPE_PREFERENCE",
@@ -327,6 +330,11 @@ class OpGuardBase(ABC):
     def classname(self) -> str:
         """Return name of class."""
         return type(self).__name__
+
+    @property
+    def callable(self) -> bool:
+        """Returns true if instance is callable."""
+        return type(self).CALLABLE
 
     def _load(self) -> None:
         """Load detector and processor (if applicable), unless already loaded."""
