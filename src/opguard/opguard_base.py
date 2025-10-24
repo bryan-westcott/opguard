@@ -62,6 +62,7 @@ Minimal example: this will apply all the guards (with default options)
 from abc import ABC, abstractmethod
 from collections.abc import Generator
 from contextlib import contextmanager
+from inspect import isabstract
 from typing import Any, ClassVar
 
 import torch
@@ -279,8 +280,13 @@ class OpGuardBase(ABC):
         """Ensure all attributes are set properly.
 
         Note: NAME, MODEL_ID, REVISION are expected to be overridden.
+        Note: when partially specializing, use allow_incomplete=True
         """
+        allow_incomplete = kwargs.pop("allow_incomplete", False)
         super().__init_subclass__(**kwargs)
+        # Don't enforce attributes if still abstract
+        if allow_incomplete or isabstract(cls):
+            return
         # Ensure all attributes set
         for attr in [
             "NAME",
