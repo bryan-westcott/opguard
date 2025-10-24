@@ -1023,6 +1023,7 @@ def device_guard(
         device_map:
             Placement hint for multi-GPU workloads.
             - "auto": include **all visible CPU/CUDA devices** in index order.
+            - "balanced": balanced mode (assume all visible)
             - None  : no multi-device expansion is performed.
             Other mapping forms are not interpreted here.
         device_list_override:
@@ -1044,6 +1045,7 @@ def device_guard(
     if (device is None) and (device_normalized_override is None) and (device_map is None):
         message = "Must specify at least one of `device`, `device_overide` and/or `device_map`."
 
+    device_normalized: torch.device
     if device_normalized_override:
         # Override input
         device_normalized = device
@@ -1071,9 +1073,9 @@ def device_guard(
         logger.debug(f"Using {device_list_override=}")
         return device_list_override, device_normalized
 
-    # Only "auto" or None supported for now
-    if (device_map is not None) and (device_map != "auto"):
-        message = "Only device_map='auto' or None is supported."
+    # Only "auto", or "balanced" or None supported for now
+    if (device_map is not None) and device_map not in ("auto", "balanced"):
+        message = "Only device_map of 'auto', 'balanced' or None is supported."
         raise ValueError(message)
 
     # For cpu-only work loads, the device list is always a single cpu device
@@ -1083,14 +1085,13 @@ def device_guard(
 
     # If device_map == "auto", then list all available cuda devices
     # Note: a check for no-cuda was already
-    if (device_map == "auto") and torch.cuda.is_available():
+    if (device_map in ("auto", "balanced")) and torch.cuda.is_available():
         device_list = [torch.device(f"cuda:{i}") for i in range(torch.cuda.device_count())]
         logger.debug(f"Setting {device_list=} from {device_map=} in device_guard")
         return device_list, device_normalized
 
     message = "Unable to determine device_list and device_normalized form inputs and system."
     raise ValueError(message)
-
 
 
 def dtype_guard(
@@ -1154,7 +1155,6 @@ def dtype_guard(
         return torch.float16
 
     return torch.float32
-
 
 
 def variant_guard(
@@ -1769,7 +1769,7 @@ def init_guard(
     device_normalized_override: torch.device | None = None,
     dtype_override: torch.dtype | None = None,
     variant_override: str | None = None,
-) -> tuple[list[str], torch.device, torch.dtype, str, DeviceMapLike]:
+) -> tuple[list[str], torch.device, torch.dtype, str, DeviceMapLike | None]:
     """Aggregate context manager for init: device_guard, dtype_guard, variant_guard."""
     device_list: list[torch.device]
     device_normalized: torch.device
@@ -1881,15 +1881,17 @@ def model_guard(
     """
     try:
         # detect device-specific settings
-        device_list, effective_dtype, variant = init_guard(**init_guard_kwargs)
+        device_list, device_normalized, effective_dtype, variant, device_map = init_guard(**init_guard_kwargs)
 
+        # update
         # safely load the model
         loader_kwargs = {
             "model_id": init_guard_kwargs["model_id"],
             "revision": init_guard_kwargs["revision"],
-            "device": init_guard_kwargs["device"],
+            "device": device_normalized,
             "dtype": effective_dtype,
             "variant": variant,
+            "device_map": device_map,
             "local_files_only": init_guard_kwargs["local_files_only"],
         }
         model = load_guard(loader_kwargs=loader_kwargs, **load_guard_kwargs)
