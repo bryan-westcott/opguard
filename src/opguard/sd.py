@@ -1,24 +1,67 @@
 """Examples of Stable Diffusion."""
 
 import torch
+from diffusers import BitsAndBytesConfig as DiffusersBitsAndBytesConfig
 from diffusers import (
-    AutoencoderTiny,
     DDPMScheduler,
     StableDiffusionPipeline,
     StableDiffusionXLPipeline,
     UNet2DConditionModel,
 )
-from diffusers import BitsAndBytesConfig as DiffusersBitsAndBytesConfig
 from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusionPipelineOutput
 from diffusers.pipelines.stable_diffusion_xl.pipeline_output import StableDiffusionXLPipelineOutput
 from PIL.Image import Image as PILImage
 from transformers import CLIPTextModel, CLIPTokenizer
 
 from .opguard_base import OpGuardBase
-from .vae import TinyVaeForSd
+from .vae import TinyVaeForSd, TinyVaeForSdxl
+
+# We do not care about LSP substitutability, OpGuard is not used directly
+# mypy: disable-error-code=override
 
 
-class SdTinyNanoTextToImage(OpGuardBase):
+class StableDiffusionBase(OpGuardBase):
+    """Abstract class for Stable Diffusion (variants including 2.1 and XL)."""
+
+    def _predict(
+        self,
+        *,
+        prompt: str,
+        **kwargs: object,
+    ) -> StableDiffusionXLPipelineOutput | StableDiffusionPipelineOutput:
+        return self._detector(prompt=prompt, **kwargs)
+
+    def _postprocess(
+        self,
+        output_raw: StableDiffusionXLPipelineOutput | StableDiffusionPipelineOutput,
+    ) -> PILImage:
+        # Simple postproc on the raw output, but return the config also
+        return output_raw.images[0]
+
+    def _caller(
+        self,
+        *,
+        input_raw: str,
+        **kwargs: object,
+    ) -> PILImage:
+        output_raw = self._predict(prompt=input_raw, **kwargs)
+        return self._postprocess(output_raw=output_raw)  # outupt_proc
+
+    def _load_detector(self) -> StableDiffusionXLPipeline | StableDiffusionPipeline:
+        pipe = StableDiffusionXLPipeline.from_pretrained(
+            self.model_id,
+            revision=self.REVISION,
+            variant=self.variant,
+            dtype=self.dtype,
+        )
+        pipe.enable_xformers_memory_efficient_attention()
+        pipe.enable_attention_slicing()
+
+        # Final device/dtype placement, with to() applied after VRAM savers
+        return pipe.to(self.device)
+
+
+class SdTinyNanoTextToImage(StableDiffusionBase):
     """A 4-bit quantized SD 2.1 Nano that uses around 2 GiB of VRAM.
 
     Note: primarily designed for demonstration and test purposes.
@@ -60,6 +103,7 @@ class SdTinyNanoTextToImage(OpGuardBase):
         # Load SD base pipeline
         pipe = StableDiffusionPipeline.from_pretrained(
             self.model_id,
+            revision=self.REVISION,
             unet=unet,
             text_encoder=text_encoder,
             tokenizer=tokenizer,
@@ -78,19 +122,8 @@ class SdTinyNanoTextToImage(OpGuardBase):
         # Final device/dtype placement, with to() applied after VRAM savers
         return pipe.to(self.device)
 
-    def _predict(self, *, prompt: str, **kwargs: object) -> StableDiffusionPipelineOutput:
-        # You can pass height/width (multiples of 8; 512x512 default for SD1.5)
-        return self._detector(prompt=prompt, **kwargs)
 
-    def _postprocess(self, output_raw: StableDiffusionPipelineOutput) -> PILImage:
-        return output_raw.images[0]
-
-    def _caller(self, *, prompt: str, **kwargs: object) -> PILImage:
-        out = self._predict(prompt=prompt, **kwargs)
-        return self._postprocess(out)
-
-
-class SdxlTextToImage(OpGuardBase):
+class SdxlTextToImage(StableDiffusionBase):
     """Stable diffusion XL with fixed VAE."""
 
     NAME = "sdxl"
@@ -98,37 +131,16 @@ class SdxlTextToImage(OpGuardBase):
     REVISION = "main"
 
     def _load_detector(self) -> StableDiffusionXLPipeline:
-        vae = AutoencoderTiny.from_pretrained("madebyollin/taesdxl", torch_dtype=torch.float16)
-        quant_config = DiffusersBitsAndBytesConfig(load_in_4bit=True)
-        pipe = StableDiffusionXLPipeline.from_pretrained(
-            self.model_id,
-            revision=self.revision,
-            variant=self.variant,
-            dtype=self.dtype,
-            vae=vae,
-            quantization_config=quant_config,
-        )
+        with TinyVaeForSdxl(keep_warm=True) as vae:
+            pipe = StableDiffusionXLPipeline.from_pretrained(
+                self.model_id,
+                revision=self.REVISION,
+                variant=self.variant,
+                dtype=self.dtype,
+                vae=vae,
+            )
         pipe.enable_xformers_memory_efficient_attention()
         pipe.enable_attention_slicing()
 
         # Final device/dtype placement, with to() applied after VRAM savers
         return pipe.to(self.device)
-
-    def _predict(self, *, prompt: str, **kwargs: object) -> StableDiffusionXLPipelineOutput:
-        return self._detector(prompt=prompt, **kwargs)
-
-    def _postprocess(
-        self,
-        output_raw: StableDiffusionXLPipelineOutput,
-    ) -> PILImage:
-        # Simple postproc on the raw output, but return the config also
-        return output_raw.images[0]
-
-    def _caller(
-        self,
-        *,
-        prompt: str,
-        **kwargs: object,
-    ) -> PILImage:
-        output_raw = self._predict(prompt=prompt, **kwargs)
-        return self._postprocess(output_raw=output_raw)  # outupt_proc
