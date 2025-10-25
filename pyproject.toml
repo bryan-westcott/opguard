@@ -118,10 +118,14 @@ build-backend = "setuptools.build_meta"
 # entrypoint for tests
 [project.scripts]
 pytest-smoke = "opguard.tests.smoke:smoke"
-pytest-slow = "opguard.tests.smoke:slow"
+pytest-vae = "opguard.tests.smoke:vae"
 pytest-nlp = "opguard.tests.smoke:nlp"
+pytest-control = "opguard.tests.smoke:control"
 pytest-sd = "opguard.tests.smoke:sd"
-pytest-controlnets = "opguard.tests.smoke:controlnets"
+pytest-cpu = "opguard.tests.smoke:cpu"
+pytest-gpu = "opguard.tests.smoke:gpu"
+pytest-bfloat = "opguard.tests.smoke:bfloat"
+pytest-slow = "opguard.tests.smoke:slow"
 
 # Pytest config (minimal and portable)
 [tool.pytest.ini_options]
@@ -129,7 +133,7 @@ pytest-controlnets = "opguard.tests.smoke:controlnets"
 testpaths = ["src/opguard/tests"]
 python_files = ["smoke.py"]
 # collect functions for possible use
-python_functions = ["smoke", "slow", "nlp", "sd", "controlnets"]
+python_functions = ["smoke", "vae", "nlp", "sd", "controlnets", "slow"]
 # Default flags: no stdout spam, show locals on failure, fail on unknown marks
 # Note: for now just runs smoke test in plain pytest
 #       enable/disable slow in plain by removing/retaining: '-m "not slow"'
@@ -144,8 +148,10 @@ addopts = """
   --xdoctest-style=google
   --cov=opguard
   --cov-report=term-missing
-  -m "not slow"
+  -m "slow"
 """
+#  -m "not slow"
+#"""
 # Declare marks
 # See decorators in actual test code
 # Selectively run with: pytest -m <marker>
@@ -154,7 +160,12 @@ markers = [
     "slow: opt-in slow tests, includes GPU and Bfloat16",
     "nlp: opt-in blip1 tests",
     "sd: opt-in sdxl tests",
-    "controlnets: opt-in controlnets tests",
+    "control: opt-in controlnets tests",
+    "vae: opt-in vae tests",
+    "cpu: opt-in cpu test with caching",
+    "gpu: opt-in gpu test with caching",
+    "bfloat: opt-in bflaot16 test with caching",
+
 ]
 
 [tool.uv]

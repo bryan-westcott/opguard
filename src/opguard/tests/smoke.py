@@ -17,7 +17,17 @@ from huggingface_hub import hf_hub_download
 from loguru import logger
 from PIL.Image import Image as PILImage
 
-from opguard.controlnets import Dwpose, Hed, MarigoldDepth, MarigoldNormals, Tile
+from opguard.controlnets import (
+    DepthControlnet,
+    DwposeDetector,
+    HedDetector,
+    MarigoldDepthDetector,
+    MarigoldNormalsDetector,
+    TileControlnet,
+    TileDetector,
+    UnionControlnet,
+    UnionPromaxControlnet,
+)
 from opguard.nlp import Blip1, Blip2
 from opguard.sd import SdTinyNanoTextToImage, SdxlTextToImage
 from opguard.vae import TinyVaeForSd
@@ -171,30 +181,6 @@ def _tiny_vae_roundtrip_sequence(*, device: str | torch.device, dtype: torch.dty
     _tiny_vae_roundtrip(device=device, dtype=dtype, local_hfhub_variant_check_only=True, only_load_export=True)
 
 
-def cpu() -> None:
-    """Test CPU mode, full precision."""
-    _tiny_vae_roundtrip_sequence(device="cpu", dtype=torch.float32)
-
-
-def gpu() -> None:
-    """Test GPU mode, half-precision."""
-    if torch.cuda.is_available():
-        _tiny_vae_roundtrip_sequence(device="cuda", dtype=torch.float16)
-    else:
-        logger.warning("Unable to run GPU tests due to loack of CUDA/GPU")
-
-
-def bfloat() -> None:
-    """Test GPU mode, with bfloat16 dtype.
-
-    Note: will fail if no GPU, and fallback to float16 if insufficient compute capability.
-    """
-    if torch.cuda.is_available():
-        _tiny_vae_roundtrip_sequence(device="cuda", dtype=torch.bfloat16)
-    else:
-        logger.warning("Unable to run BFLOAT16 tests due to loack of CUDA/GPU")
-
-
 def blip(*, test_image: PILImage | None = None, test_blip1: bool = True, test_blip2: bool = True) -> dict[str, Any]:
     """Test NLP objects."""
     test_image = test_image or load_test_image()
@@ -231,7 +217,7 @@ def sdxl() -> None:
     """Test SDXL."""
     prompt = "An astronaut on a horse on the moon."
     with SdxlTextToImage() as sdxl:
-        image = sdxl(prompt=prompt)
+        image = sdxl(input_raw=prompt)
     # check for image output, with some width/height and not all zeros.
     assert isinstance(image, PILImage)
     assert all(dim > 0 for dim in image.size)
@@ -245,7 +231,7 @@ def sd_tiny() -> None:
     """
     prompt = "An astronaut on a horse on the moon."
     with SdTinyNanoTextToImage() as sd:
-        image = sd(input_raw=None, prompt=prompt, height=128, width=128)
+        image = sd(input_raw=prompt, height=128, width=128)
     # check for image output, with some width/height and not all zeros.
     assert isinstance(image, PILImage)
     assert all(dim > 0 for dim in image.size)
@@ -257,22 +243,75 @@ def controlnets(test_image: PILImage | None = None) -> dict[str, Any]:
     """Test ControlNets objects."""
     test_image = test_image or load_test_image()
     display_size = (512, 512)
-    control_types = (Tile, Hed, MarigoldDepth, MarigoldNormals, Dwpose)
+    control_types = (
+        TileDetector,
+        TileControlnet,
+        HedDetector,
+        MarigoldDepthDetector,
+        DepthControlnet,
+        UnionControlnet,
+        UnionPromaxControlnet,
+        MarigoldNormalsDetector,
+        DwposeDetector,
+    )
     control_outputs = []
     return_control = {}
     for control_type in control_types:
         logger.debug(f"Running test: {control_type}")
-
-        with control_type() as control:
-            control_output = control(input_raw=test_image).resize(display_size)
-            control_outputs.append(control_output)
-            return_control[control.name] = control_output
+        try:
+            with control_type() as control:
+                control_output = None
+                if control.CALLABLE:
+                    control_output = control(input_raw=test_image).resize(display_size)
+                control_outputs.append(control_output)
+                return_control[control.NAME] = control_output
+        except torch.OutOfMemoryError:
+            logger.error(f"OUT OF MEMORY FOR {control_type}, skipping")
     return return_control
 
 
 @pytest.mark.smoke
 def smoke() -> None:
     """Simplest run (no CUDA/GPU needed)."""
+    # Note: same as single vae run but always CPU
+    _tiny_vae_roundtrip(
+        device="cpu",
+        dtype=torch.float32,
+        local_hfhub_variant_check_only=False,
+        force_export_refresh=True,
+    )
+
+
+@pytest.mark.cpu
+def cpu() -> None:
+    """Test CPU mode, full precision."""
+    _tiny_vae_roundtrip_sequence(device="cpu", dtype=torch.float32)
+
+
+@pytest.mark.gpu
+def gpu() -> None:
+    """Test GPU mode, half-precision."""
+    if torch.cuda.is_available():
+        _tiny_vae_roundtrip_sequence(device="cuda", dtype=torch.float16)
+    else:
+        logger.warning("Unable to run GPU tests due to loack of CUDA/GPU")
+
+
+@pytest.mark.bfloat
+def bfloat() -> None:
+    """Test GPU mode, with bfloat16 dtype.
+
+    Note: will fail if no GPU, and fallback to float16 if insufficient compute capability.
+    """
+    if torch.cuda.is_available():
+        _tiny_vae_roundtrip_sequence(device="cuda", dtype=torch.bfloat16)
+    else:
+        logger.warning("Unable to run BFLOAT16 tests due to loack of CUDA/GPU")
+
+
+@pytest.mark.vae
+def vae() -> None:
+    """VAE test."""
     _tiny_vae_roundtrip(
         device="cpu",
         dtype=torch.float32,
@@ -293,7 +332,7 @@ def sd() -> None:
     sd_tiny()
 
 
-@pytest.mark.controlnets
+@pytest.mark.control
 def control() -> None:
     """Test various controlnets."""
     controlnets()
@@ -305,5 +344,7 @@ def slow() -> None:
     cpu()
     gpu()
     bfloat()
+    vae()
     nlp()
+    sd()
     controlnets()
