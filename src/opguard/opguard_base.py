@@ -133,13 +133,28 @@ class OpGuardBase(ABC):
 
     # --- Specialize Here -----
 
-    # Subclasses must overrdie
-    NAME: ClassVar[str] = ""
-    MODEL_ID: ClassVar[str] = ""
-    REVISION: ClassVar[str] = ""
+    # Subclasses must override
 
-    # Subclasses may override
+    @property
+    @abstractmethod
+    def NAME(self) -> str:  # noqa: N802  (becomes a ClassVar when concrete)
+        """The name of the object."""
+
+    @property
+    @abstractmethod
+    def MODEL_ID(self) -> str:  # noqa: N802  (becomes a ClassVar when concrete)
+        """The HF hub repo id for the model weights."""
+
+    @property
+    @abstractmethod
+    def REVISION(self) -> str:  # noqa: N802  (becomes a ClassVar when concrete)
+        """The revision identifier for the model weights."""
+
+    # --- Subclasses may override ---
+
+    # Default torch device
     DEFAULT_DEVICE: ClassVar[DeviceLike] = "cuda"
+    # default huggingface device_map
     DEFAULT_DEVICE_MAP: ClassVar[DeviceMapLike] = "auto"
     # Whether honored is compute capability and hardware dependent
     DTYPE_PREFERENCE: ClassVar[torch.dtype] = torch.bfloat16
@@ -262,11 +277,11 @@ class OpGuardBase(ABC):
 
         # initialize dtype, variant, device_list based on runtime hardware
         self.device_list, self.device, self.dtype, self.variant, self.device_map = init_guard(
-            device=device_override or type(self).DEFAULT_DEVICE,
-            device_map=device_map_override or type(self).DEFAULT_DEVICE_MAP,
-            dtype=dtype_override or type(self).DTYPE_PREFERENCE,
+            device=device_override or self.DEFAULT_DEVICE,
+            device_map=device_map_override or self.DEFAULT_DEVICE_MAP,
+            dtype=dtype_override or self.DTYPE_PREFERENCE,
             model_id=self.model_id,
-            revision=self.revision,
+            revision=self.REVISION,
             local_hfhub_variant_check_only=local_hfhub_variant_check_only,
         )
         logger.debug(f"Choices for {self.classname}: {self.dtype=}, {self.variant=}")
@@ -280,12 +295,11 @@ class OpGuardBase(ABC):
         """Ensure all attributes are set properly.
 
         Note: NAME, MODEL_ID, REVISION are expected to be overridden.
-        Note: when partially specializing, use allow_incomplete=True
         """
-        allow_incomplete = kwargs.pop("allow_incomplete", False)
         super().__init_subclass__(**kwargs)
         # Don't enforce attributes if still abstract
-        if allow_incomplete or isabstract(cls):
+        # defer if explicitly allowed or still abstract
+        if isabstract(cls):
             return
         # Ensure all attributes set
         for attr in [
@@ -304,18 +318,13 @@ class OpGuardBase(ABC):
                 raise TypeError(message)
 
     @property
-    def name(self) -> str:
-        """Return the class human-friendly identifier for the specialized class."""
-        return type(self).NAME
-
-    @property
     def model_id(self) -> str:
         """Return the Huggingface ID for the core model weights.
 
         Note: from type(self).MODEL_ID unles self._model_id_override not None.
         """
         # Note: may b
-        return self._model_id_override if self._model_id_override else type(self).MODEL_ID
+        return self._model_id_override if self._model_id_override else self.MODEL_ID
 
     @model_id.setter
     def model_id(self, value: str) -> None:
@@ -323,24 +332,9 @@ class OpGuardBase(ABC):
         self._model_id_override = value
 
     @property
-    def revision(self) -> str:
-        """Return the model revision (git hash or branch name)."""
-        return type(self).REVISION
-
-    @property
-    def need_grads(self) -> bool:
-        """Return whether gradients needed."""
-        return type(self).NEED_GRADS
-
-    @property
     def classname(self) -> str:
         """Return name of class."""
         return type(self).__name__
-
-    @property
-    def callable(self) -> bool:
-        """Returns true if instance is callable."""
-        return type(self).CALLABLE
 
     def _load(self) -> None:
         """Load detector and processor (if applicable), unless already loaded."""
@@ -361,7 +355,7 @@ class OpGuardBase(ABC):
                 train_mode=False,
                 loader_fn=self._load_detector,
                 loader_kwargs=None,
-                export_name=f"{self.name}-detector",
+                export_name=f"{self.NAME}-detector",
                 only_load_export=self.only_load_export,
                 force_export_refresh=self.force_export_refresh,
             )
@@ -418,7 +412,7 @@ class OpGuardBase(ABC):
             # Autocast for proper precision, accounting for gradient needs, also stream synchronize
             # Note: dtype and device guard are already pre-checked in init
             with call_guard(
-                need_grads=self.need_grads,
+                need_grads=self.NEED_GRADS,
                 sanitize_all_exceptions=self.sanitize_all_exceptions,
                 caller_fn=self._caller,
                 effective_dtype=self.dtype,
