@@ -77,7 +77,6 @@ class HedDetector(OpGuardBase):
     def _load_detector(self) -> HEDdetector:
         return HEDdetector.from_pretrained(
             self.model_id,
-            revision=self.REVISION,
         ).to(self.device)
 
 
