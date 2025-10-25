@@ -1,21 +1,18 @@
 """An example TinyVAE specialization of OpGuardBase."""
 
+# We do not care about LSP substitutability, OpGuard is not used directly
+# mypy: disable-error-code=override
+
 import torch
 from diffusers import AutoencoderTiny
 from diffusers.image_processor import VaeImageProcessor
 from PIL.Image import Image as PILImage
 
-from opguard import OpGuardBase
+from opguard.opguard_base import OpGuardBase
 
 
-class TinyVaeForSd(OpGuardBase):
-    """Tiny VAE for SD."""
-
-    NAME = "tiny-vae"
-    MODEL_ID = "madebyollin/taesd"
-    REVISION = "main"
-    DEFAULT_DEVICE = "cpu"
-    DEFAULT_DTYPE = torch.float32
+class TinyVaeBase(OpGuardBase):
+    """Tiny VAE base class for both SD and SDXL."""
 
     def _load_processor(self, **kwargs: object) -> VaeImageProcessor:
         return VaeImageProcessor(vae_scale_factor=8)
@@ -24,9 +21,9 @@ class TinyVaeForSd(OpGuardBase):
         # ruff: noqa: ARG002
         return AutoencoderTiny.from_pretrained(
             self.model_id,
+            revision=self.REVISION,
             torch_dtype=self.dtype,
             local_files_only=self.local_files_only,
-            revision=self.revision,
         ).to(self.device)
 
     def _preprocess(self, *, input_raw: PILImage, **kwargs: object) -> torch.FloatTensor:
@@ -83,7 +80,7 @@ class TinyVaeForSd(OpGuardBase):
         Note: output should closely match input on 'encode-decode' mode
         """
         if mode == "encode":
-            return self._endcode(image=input_proc)
+            return self._encode(image=input_proc)
         if mode == "decode":
             return self._decode(latent=input_proc)
         if mode == "encode-decode":
@@ -91,3 +88,23 @@ class TinyVaeForSd(OpGuardBase):
         valid_modes = ("encode", "decode", "encode-decode")
         message = f"Prediction mode must be in: {valid_modes}"
         raise ValueError(message)
+
+
+class TinyVaeForSd(TinyVaeBase):
+    """Tiny VAE for SD."""
+
+    NAME = "tiny-vae-sd"
+    MODEL_ID = "madebyollin/taesd"
+    REVISION = "main"
+    DEFAULT_DEVICE = "cpu"
+    DEFAULT_DTYPE = torch.float32
+
+
+class TinyVaeForSdxl(TinyVaeBase):
+    """Tiny VAE for SDXL."""
+
+    NAME = "tiny-vae-sdxl"
+    MODEL_ID = "madebyollin/taesdxl"
+    REVISION = "main"
+    DEFAULT_DEVICE = "cpu"
+    DEFAULT_DTYPE = torch.float32
