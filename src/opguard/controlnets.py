@@ -4,10 +4,12 @@
 # mypy: disable-error-code=override
 
 from collections.abc import Callable
+from typing import Final
 
 import torch
 from controlnet_aux import HEDdetector
 from diffusers import ControlNetModel, MarigoldDepthPipeline, MarigoldNormalsPipeline
+from diffusers import ControlNetModel as ControlNetModel_Union
 from diffusers.pipelines.marigold.pipeline_marigold_depth import MarigoldDepthOutput
 from diffusers.pipelines.marigold.pipeline_marigold_normals import MarigoldNormalsOutput
 from easy_dwpose import DWposeDetector
@@ -16,10 +18,22 @@ from PIL.Image import Image as PILImage
 from .opguard_base import OpGuardBase
 
 
-class Tile(OpGuardBase):
+class ControlnetBase(OpGuardBase):
+    """Abstract class for controlnets."""
+
+    CALLABLE: Final[bool] = False
+
+    # Stub for callers
+    def _caller(self, *args: object, **kwargs: object) -> None:
+        # ruff: noqa: ARG002  (this is to chatch accidental calls)
+        message = "Controlnets are not meant to be called, but rather attached to a pipe"
+        raise RuntimeError(message)
+
+
+class TileDetector(OpGuardBase):
     """Tile controlnet."""
 
-    NAME = "tile"
+    NAME = "tile-detector"
     MODEL_ID = "xinsir/controlnet-tile-sdxl-1.0"
     REVISION = "main"
 
@@ -30,14 +44,31 @@ class Tile(OpGuardBase):
         """Return a loaded Tile controlnet to attach to external diffusion pipeline."""
         return ControlNetModel.from_pretrained(
             self.model_id,
+            revision=self.REVISION,
             torch_dtype=self.dtype,
         ).to(self.device)
 
 
-class Hed(OpGuardBase):
+class TileControlnet(ControlnetBase):
+    """Tile controlnet."""
+
+    NAME = "tile-controlnet"
+    MODEL_ID = "xinsir/controlnet-tile-sdxl-1.0"
+    REVISION = "main"
+
+    def _load_detector(self) -> ControlNetModel:
+        """Return a loaded Tile controlnet to attach to external diffusion pipeline."""
+        return ControlNetModel.from_pretrained(
+            self.model_id,
+            revision=self.REVISION,
+            torch_dtype=self.dtype,
+        ).to(self.device)
+
+
+class HedDetector(OpGuardBase):
     """HED softline detector."""
 
-    NAME = "hed"
+    NAME = "hed-detector"
     MODEL_ID = "lllyasviel/Annotators"
     REVISION = "main"
     # Will fail on bfloat16 due to use of numpy detach
@@ -46,26 +77,21 @@ class Hed(OpGuardBase):
     def _load_detector(self) -> HEDdetector:
         return HEDdetector.from_pretrained(
             self.model_id,
-        ).to(self.device)
-
-    def controlnet(self) -> ControlNetModel:
-        """Return a loaded HED controlnet to attach to external diffusion pipeline."""
-        return ControlNetModel.from_pretrained(
-            "xinsir/controlnet-tile-sdxl-1.0",
-            torch_dtype=self.dtype,
+            revision=self.REVISION,
         ).to(self.device)
 
 
-class MarigoldDepth(OpGuardBase):
+class MarigoldDepthDetector(OpGuardBase):
     """Marigold depth detector."""
 
-    NAME = "marigold_depth"
+    NAME = "marigold-depth-detector"
     MODEL_ID = "prs-eth/marigold-depth-v1-1"
     REVISION = "main"
 
     def _load_detector(self) -> MarigoldDepthPipeline:
         return MarigoldDepthPipeline.from_pretrained(
             self.model_id,
+            revision=self.REVISION,
             variant=self.variant,
             torch_dtype=self.dtype,
         ).to(self.device)
@@ -79,24 +105,81 @@ class MarigoldDepth(OpGuardBase):
             color_map="binary",
         )[0]
 
-    def controlnet(self) -> ControlNetModel:
+
+class DepthControlnet(ControlnetBase):
+    """Depth controlnet."""
+
+    NAME = "marigold-depth-controlnet"
+    MODEL_ID = "xinsir/controlnet-depth-sdxl-1.0"
+    REVISION = "main"
+
+    def _load_detector(self) -> ControlNetModel:
         """Return a loaded Marigold Depth controlnet for external diffusion pipeline."""
         return ControlNetModel.from_pretrained(
-            "xinsir/controlnet-depth-sdxl-1.0",
+            self.model_id,
+            revision=self.REVISION,
             torch_dtype=self.dtype,
         ).to(self.device)
 
 
-class MarigoldNormals(OpGuardBase):
+class UnionControlnet(ControlnetBase):
+    """Union controlnet for various control methods.
+
+    See: https://github.com/xinsir6/ControlNetPlus/tree/main
+
+    Supports:
+        Openpose (now DWPose), Depth, Canny, Lineart, AnimeLineart, Mlsd, Scribble,
+        Hed, Pidi (Softedge), Teed, Segment, Normal
+    """
+
+    NAME = "marigold-depth-controlnet"
+    MODEL_ID = "xinsir/controlnet-union-sdxl-1.0"
+    REVISION = "main"
+
+    def _load_detector(self) -> ControlNetModel:
+        """Return a loaded Marigold Depth controlnet for external diffusion pipeline."""
+        return ControlNetModel_Union.from_pretrained(
+            self.model_id,
+            revision=self.REVISION,
+            torch_dtype=self.dtype,
+        ).to(self.device)
+
+
+class UnionPromaxControlnet(ControlnetBase):
+    """Union Promax controlnet for various control methods.
+
+    See: https://github.com/xinsir6/ControlNetPlus/tree/main
+
+    Supports:
+        Same as Union, and
+        Inpatining, Outpainting, Tile Superresolution, Tile Variation, Tile Deblur,
+    """
+
+    NAME = "marigold-depth-controlnet"
+    MODEL_ID = "xinsir/controlnet-union-sdxl-1.0"
+    REVISION = "main"
+
+    def _load_detector(self) -> ControlNetModel:
+        """Return a loaded Marigold Depth controlnet for external diffusion pipeline."""
+        return ControlNetModel_Union.from_pretrained(
+            self.model_id,
+            revision=self.REVISION,
+            torch_dtype=self.dtype,
+            config_name="config_promax.json",
+        ).to(self.device)
+
+
+class MarigoldNormalsDetector(OpGuardBase):
     """Marigold normals detector."""
 
-    NAME = "marigold_normals"
+    NAME = "marigold-normals-detector"
     MODEL_ID = "prs-eth/marigold-normals-v1-1"
     REVISION = "main"
 
     def _load_detector(self) -> MarigoldNormalsPipeline:
         return MarigoldNormalsPipeline.from_pretrained(
             self.model_id,
+            revision=self.REVISION,
             variant=self.variant,
             torch_dtype=self.dtype,
         ).to(self.device)
@@ -105,10 +188,10 @@ class MarigoldNormals(OpGuardBase):
         return self._detector.image_processor.visualize_normals(output_raw.prediction)[0]
 
 
-class Dwpose(OpGuardBase):
+class DwposeDetector(OpGuardBase):
     """DWPose detector."""
 
-    NAME = "dwpose"
+    NAME = "dwpose-detector"
     MODEL_ID = "RedHash/DWPose"
     REVISION = "main"
 
