@@ -26,6 +26,7 @@ class Blip1(OpGuardBase):
     def _load_processor(self) -> BlipProcessor:
         return BlipProcessor.from_pretrained(
             self.model_id,
+            revision=self.REVISION,
             use_fast=True,
             device_map=self.device_map,
         )
@@ -33,6 +34,7 @@ class Blip1(OpGuardBase):
     def _load_detector(self) -> BlipForConditionalGeneration:
         return BlipForConditionalGeneration.from_pretrained(
             self.model_id,
+            revision=self.REVISION,
             dtype=self.dtype,
             device_map=self.device_map,
         )
@@ -65,6 +67,7 @@ class Blip2(Blip1):
     def _load_processor(self) -> Blip2Processor:
         return Blip2Processor.from_pretrained(
             self.model_id,
+            revision=self.REVISION,
             use_fast=True,
             device_map=self.device_map,
         )
@@ -72,6 +75,7 @@ class Blip2(Blip1):
     def _load_detector(self) -> Blip2ForConditionalGeneration:
         return Blip2ForConditionalGeneration.from_pretrained(
             self.model_id,
+            revision=self.REVISION,
             load_in_8bit=True,
             device_map=self.device_map,
         )
