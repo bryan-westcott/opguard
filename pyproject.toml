@@ -133,7 +133,7 @@ pytest-slow = "opguard.tests.smoke:slow"
 testpaths = ["src/opguard/tests"]
 python_files = ["smoke.py"]
 # collect functions for possible use
-python_functions = ["smoke", "vae", "nlp", "sd", "controlnets", "slow"]
+python_functions = ["smoke", "vae", "nlp", "sd", "control", "slow"]
 # Default flags: no stdout spam, show locals on failure, fail on unknown marks
 # Note: for now just runs smoke test in plain pytest
 #       enable/disable slow in plain by removing/retaining: '-m "not slow"'
