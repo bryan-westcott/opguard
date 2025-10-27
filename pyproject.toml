@@ -117,21 +117,21 @@ build-backend = "setuptools.build_meta"
 
 # entrypoint for tests
 [project.scripts]
-pytest-smoke = "opguard.tests.smoke:smoke"
-pytest-vae = "opguard.tests.smoke:vae"
-pytest-nlp = "opguard.tests.smoke:nlp"
-pytest-control = "opguard.tests.smoke:control"
-pytest-sd = "opguard.tests.smoke:sd"
-pytest-cpu = "opguard.tests.smoke:cpu"
-pytest-gpu = "opguard.tests.smoke:gpu"
-pytest-bfloat = "opguard.tests.smoke:bfloat"
-pytest-slow = "opguard.tests.smoke:slow"
+pytest-smoke = "opguard.tests.test:smoke"
+pytest-vae = "opguard.tests.test:vae"
+pytest-nlp = "opguard.tests.test:nlp"
+pytest-control = "opguard.tests.test:control"
+pytest-sd = "opguard.tests.test:sd"
+pytest-cpu = "opguard.tests.test:cpu"
+pytest-gpu = "opguard.tests.test:gpu"
+pytest-bfloat = "opguard.tests.test:bfloat"
+pytest-slow = "opguard.tests.test:slow"
 
 # Pytest config (minimal and portable)
 [tool.pytest.ini_options]
 # Don't set pythonpath, rely on editable install
 testpaths = ["src/opguard/tests"]
-python_files = ["smoke.py"]
+python_files = ["test.py"]
 # collect functions for possible use
 python_functions = ["smoke", "vae", "nlp", "sd", "control", "slow"]
 # Default flags: no stdout spam, show locals on failure, fail on unknown marks
@@ -148,7 +148,7 @@ addopts = """
   --xdoctest-style=google
   --cov=opguard
   --cov-report=term-missing
-  -m "slow"
+  -m "smoke"
 """
 #  -m "not slow"
 #"""
