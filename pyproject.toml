@@ -162,7 +162,7 @@ markers = [
     "cpu: opt-in cpu test with caching using tiny vae",
     "gpu: opt-in gpu test with caching using tiny vae",
     "bfloat: opt-in bflaot16 test with caching using tiny vae",
-    "hp16vae: opt-in test of fp16 fixed sdxl vae"
+    "fp16vae: opt-in test of fp16 fixed sdxl vae"
 ]
 
 [tool.uv]
