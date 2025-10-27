@@ -13,7 +13,7 @@ resolution-markers = [
 [manifest]
 overrides = [
     { name = "huggingface-hub", specifier = ">=0.34.0" },
-    { name = "onnxruntime-gpu", specifier = "==1.17.0" },
+    { name = "onnxruntime-gpu", specifier = ">=1.17,<1.23" },
     { name = "opencv-contrib-python-headless", marker = "sys_platform == 'never'", specifier = ">=4.11.0.86" },
     { name = "opencv-python", marker = "sys_platform == 'never'", specifier = ">=4.11.0.86" },
     { name = "opencv-python-headless", marker = "sys_platform == 'never'", specifier = ">=4.11.0.86" },
@@ -2090,7 +2090,7 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.10.1" },
     { name = "mediapipe", specifier = ">=0.10.21" },
     { name = "numpy", specifier = ">=1.26.4,<2" },
-    { name = "onnxruntime-gpu", specifier = ">=1.17,<=1.23" },
+    { name = "onnxruntime-gpu" },
     { name = "opencv-contrib-python", specifier = "==4.11.0.86" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "pillow", specifier = ">=11.1.0" },

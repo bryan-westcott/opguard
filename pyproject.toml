@@ -48,7 +48,7 @@ dependencies = [
     "controlnet-aux>=0.0.10",
     "requests>=2.32.5",
     "easy-dwpose>=1.0.2",
-    "onnxruntime-gpu>=1.17,<=1.23",
+    "onnxruntime-gpu",
     "loguru",
 ]
 
@@ -179,7 +179,7 @@ override-dependencies = [
     "opencv-python-headless>=4.11.0.86 ; sys_platform == 'never'",
     "opencv-contrib-python-headless>=4.11.0.86 ; sys_platform == 'never'",
     "huggingface-hub>=0.34.0", # experimental for dwpose forced install
-    "onnxruntime-gpu==1.17.0", # experimental for dwpose forced install, for cuda 12x, only 1.18+ available
+    "onnxruntime-gpu>=1.17,<1.23", # experimental for dwpose forced install, for cuda 12x, only 1.18+ available
 ]
 
 [tool.uv.sources]
