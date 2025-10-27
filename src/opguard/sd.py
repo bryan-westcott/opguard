@@ -112,7 +112,7 @@ class SdTinyNanoTextToImage(StableDiffusionBase):
         # Load TinyVAE using OpGuard wrapped version
         # Note: it may have different variant
         #       it also has its own model_id that it tracks
-        with TinyVaeForSd(keep_warm=True) as vae:
+        with TinyVaeForSd() as vae:
             pipe.vae = vae.detector
 
         # Memory and performance tweaks
