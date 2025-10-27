@@ -54,7 +54,7 @@ dependencies = [
 
 [dependency-groups]
 
-dev = [
+tooling = [
     "boto3-stubs>=1.35.81",
     "matplotlib-stubs>=0.2.0",
     "ml-dtypes>=0.4.1",
@@ -71,7 +71,6 @@ dev = [
     "docformatter>=1.7.7",
     "types-openpyxl>=3.1.5.20241225",
     "yamllint>=1.37.1",
-    "ipykernel>=6.29.5",
     "supervision>=0.26.1",
 ]
 
