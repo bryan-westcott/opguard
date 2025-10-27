@@ -320,16 +320,28 @@ def bfloat() -> None:
         logger.warning("Unable to run BFLOAT16 tests due to loack of CUDA/GPU")
 
 
+@pytest.mark.fp16vae
+def fp16vae() -> None:
+    """Test SDXL vae with FP16 fix, with bfloat16 dtype.
+
+    Note: will fail if no GPU, and fallback to float16 if insufficient compute capability.
+    """
+    if torch.cuda.is_available():
+        _sdxl_vae_roundtrip(
+            local_hfhub_variant_check_only=False,
+            force_export_refresh=True,
+        )
+    else:
+        logger.warning("Unable to run sdxl_vae_fp16_fix tests due to loack of CUDA/GPU")
+
+
 @pytest.mark.vae
 def vae() -> None:
     """VAE test."""
     cpu()
     gpu()
     bfloat()
-    _sdxl_vae_roundtrip(
-        local_hfhub_variant_check_only=False,
-        force_export_refresh=True,
-    )
+    fp16vae()
 
 
 @pytest.mark.nlp
