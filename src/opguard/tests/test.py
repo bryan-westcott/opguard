@@ -30,7 +30,7 @@ from opguard.controlnets import (
 )
 from opguard.nlp import Blip1, Blip2
 from opguard.sd import SdTinyNanoTextToImage, SdxlTextToImage
-from opguard.vae import TinyVaeForSd
+from opguard.vae import SdxlVaeFp16Fix, TinyVaeForSd
 
 
 def load_test_image(
@@ -158,6 +158,17 @@ def load_test_image(
         image = image.resize(final_size)
 
     return image
+
+
+def _sdxl_vae_roundtrip(*, device: str | torch.device = "cuda", dtype: torch.dtype = torch.bfloat16, **kwargs) -> None:
+    """Tiny round-trip VAE that exercises OpGuard with various device/dtypes."""
+    # ruff: noqa: ANN003  (too restrictive on tests)
+    logger.info(f"Running smoke test with {device=}, {dtype=}, {kwargs=}")
+
+    with SdxlVaeFp16Fix(device_override=device, dtype_override=dtype, **kwargs) as vae:
+        input_image = load_test_image(final_size=(512, 512), allow_direct_download=False)
+        output_image = vae(input_raw=input_image, mode="encode-decode")
+    assert input_image.size == output_image.size
 
 
 def _tiny_vae_roundtrip(*, device: str | torch.device, dtype: torch.dtype, **kwargs) -> None:
@@ -312,9 +323,10 @@ def bfloat() -> None:
 @pytest.mark.vae
 def vae() -> None:
     """VAE test."""
-    _tiny_vae_roundtrip(
-        device="cpu",
-        dtype=torch.float32,
+    cpu()
+    gpu()
+    bfloat()
+    _sdxl_vae_roundtrip(
         local_hfhub_variant_check_only=False,
         force_export_refresh=True,
     )
