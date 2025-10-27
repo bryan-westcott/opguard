@@ -24,11 +24,9 @@ version = "0.0.1"
 dependencies = [
     "accelerate>=1.7.0",
     "bitsandbytes>=0.46.0",
-    #"diffusers>=0.33.1",
     "diffusers",
-    #"huggingface-hub>=0.29.1",
     "huggingface-hub==0.24.6",
-    "instantstyle-plus", # optional: instantstyle-plus[with-csd-score]
+    "instantstyle-plus",
     "matplotlib>=3.10.1",
     "mediapipe>=0.10.21",
     "numpy>=1.26.4",
