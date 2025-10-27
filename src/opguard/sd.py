@@ -14,7 +14,7 @@ from PIL.Image import Image as PILImage
 from transformers import CLIPTextModel, CLIPTokenizer
 
 from .opguard_base import OpGuardBase
-from .vae import TinyVaeForSd, TinyVaeForSdxl
+from .vae import SdxlVaeFp16Fix, TinyVaeForSd
 
 # We do not care about LSP substitutability, OpGuard is not used directly
 # mypy: disable-error-code=override
@@ -131,7 +131,7 @@ class SdxlTextToImage(StableDiffusionBase):
     REVISION = "main"
 
     def _load_detector(self) -> StableDiffusionXLPipeline:
-        with TinyVaeForSdxl(keep_warm=True) as vae:
+        with SdxlVaeFp16Fix() as vae:
             pipe = StableDiffusionXLPipeline.from_pretrained(
                 self.model_id,
                 revision=self.REVISION,
