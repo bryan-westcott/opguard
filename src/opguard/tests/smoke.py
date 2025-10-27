@@ -236,7 +236,7 @@ def sd_tiny() -> None:
     assert isinstance(image, PILImage)
     assert all(dim > 0 for dim in image.size)
     assert len(np.unique(np.array(image).ravel())) > 1
-    image.save("test-sd21.png")
+    image.save("sd21-test.png")
 
 
 def controlnets(test_image: PILImage | None = None) -> dict[str, Any]:
@@ -257,7 +257,7 @@ def controlnets(test_image: PILImage | None = None) -> dict[str, Any]:
     control_outputs = []
     return_control = {}
     for control_type in control_types:
-        logger.debug(f"Running test: {control_type}")
+        logger.info(f"Running test: {control_type}")
         try:
             with control_type() as control:
                 control_output = None
