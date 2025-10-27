@@ -124,6 +124,7 @@ pytest-cpu = "opguard.tests.test:cpu"
 pytest-gpu = "opguard.tests.test:gpu"
 pytest-bfloat = "opguard.tests.test:bfloat"
 pytest-fp16vae = "opguard.tests.test:fp16vae"
+pytest-inversion = "opguard.tests.test:inversion"
 pytest-slow = "opguard.tests.test:slow"
 
 # Pytest config (minimal and portable)
@@ -132,7 +133,7 @@ pytest-slow = "opguard.tests.test:slow"
 testpaths = ["src/opguard/tests"]
 python_files = ["test.py"]
 # collect functions for possible use
-python_functions = ["smoke", "vae", "nlp", "sd", "control", "slow"]
+python_functions = ["smoke", "vae", "nlp", "sd", "control", "slow", "inversion"]
 # Default flags: no stdout spam, show locals on failure, fail on unknown marks
 # Default test: just the `smoke` test
 # To run full tets: `pytest -m slow`
@@ -162,7 +163,8 @@ markers = [
     "cpu: opt-in cpu test with caching using tiny vae",
     "gpu: opt-in gpu test with caching using tiny vae",
     "bfloat: opt-in bflaot16 test with caching using tiny vae",
-    "fp16vae: opt-in test of fp16 fixed sdxl vae"
+    "hp16vae: opt-in test of fp16 fixed sdxl vae",
+    "inversion: opt-in test of sdxl inversion",
 ]
 
 [tool.uv]
