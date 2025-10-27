@@ -135,8 +135,8 @@ python_files = ["test.py"]
 # collect functions for possible use
 python_functions = ["smoke", "vae", "nlp", "sd", "control", "slow"]
 # Default flags: no stdout spam, show locals on failure, fail on unknown marks
-# Note: for now just runs smoke test in plain pytest
-#       enable/disable slow in plain by removing/retaining: '-m "not slow"'
+# Default test: just the `smoke` test
+# To run full tets: `pytest -m slow`
 addopts = """
   -q
   --strict-markers
@@ -150,8 +150,6 @@ addopts = """
   --cov-report=term-missing
   -m "smoke"
 """
-#  -m "not slow"
-#"""
 # Declare marks
 # See decorators in actual test code
 # Selectively run with: pytest -m <marker>
