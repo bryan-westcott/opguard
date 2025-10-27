@@ -123,6 +123,7 @@ pytest-sd = "opguard.tests.test:sd"
 pytest-cpu = "opguard.tests.test:cpu"
 pytest-gpu = "opguard.tests.test:gpu"
 pytest-bfloat = "opguard.tests.test:bfloat"
+pytest-fp16vae = "opguard.tests.test:fp16vae"
 pytest-slow = "opguard.tests.test:slow"
 
 # Pytest config (minimal and portable)
@@ -158,10 +159,10 @@ markers = [
     "sd: opt-in sdxl tests",
     "control: opt-in controlnets tests",
     "vae: opt-in vae tests",
-    "cpu: opt-in cpu test with caching",
-    "gpu: opt-in gpu test with caching",
-    "bfloat: opt-in bflaot16 test with caching",
-
+    "cpu: opt-in cpu test with caching using tiny vae",
+    "gpu: opt-in gpu test with caching using tiny vae",
+    "bfloat: opt-in bflaot16 test with caching using tiny vae",
+    "hp16vae: opt-in test of fp16 fixed sdxl vae"
 ]
 
 [tool.uv]
