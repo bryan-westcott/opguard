@@ -55,10 +55,10 @@ safe_sync() {
     # check if tooling section in pyproject.toml
     HAS_TOOLING_GROUP=0
     if grep -q '^[[:space:]]*tooling[[:space:]]*=' "${PYPROJECT_FILE?}"; then
-      echo "🛠️  Detected 'tooling' extra in $PYPROJECT_FILE"
+      echo "🛠️  Detected 'tooling' group in $PYPROJECT_FILE"
       HAS_TOOLING_GROUP=1
     else
-      echo "🚫🛠️  No 'tooling' extra found in $PYPROJECT_FILE; skipping Jupyter setup."
+      echo "🚫🛠️  No 'tooling' group found in $PYPROJECT_FILE; skipping Jupyter setup."
     fi
 
     # -- Compose sync args ---
