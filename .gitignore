@@ -39,3 +39,5 @@ lint_result.txt
 certs/
 .env
 .coverage
+
+**/*test*.png
