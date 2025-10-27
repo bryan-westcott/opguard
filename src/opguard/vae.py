@@ -4,27 +4,18 @@
 # mypy: disable-error-code=override
 
 import torch
-from diffusers import AutoencoderTiny
+from diffusers import AutoencoderKL, AutoencoderTiny
 from diffusers.image_processor import VaeImageProcessor
 from PIL.Image import Image as PILImage
 
 from opguard.opguard_base import OpGuardBase
 
 
-class TinyVaeBase(OpGuardBase):
+class AutoencoderBase(OpGuardBase):
     """Tiny VAE base class for both SD and SDXL."""
 
     def _load_processor(self, **kwargs: object) -> VaeImageProcessor:
         return VaeImageProcessor(vae_scale_factor=8)
-
-    def _load_detector(self, **kwargs: object) -> AutoencoderTiny:
-        # ruff: noqa: ARG002
-        return AutoencoderTiny.from_pretrained(
-            self.model_id,
-            revision=self.REVISION,
-            torch_dtype=self.dtype,
-            local_files_only=self.local_files_only,
-        ).to(self.device)
 
     def _preprocess(self, *, input_raw: PILImage, **kwargs: object) -> torch.FloatTensor:
         return self._processor.preprocess(input_raw).to(self.device, self.dtype)  # (B,C,H,W)
@@ -90,7 +81,36 @@ class TinyVaeBase(OpGuardBase):
         raise ValueError(message)
 
 
-class TinyVaeForSd(TinyVaeBase):
+class AutoencoderTinyBase(AutoencoderBase):
+    """AutoencoderTiny VAE base class for both SD and SDXL."""
+
+    def _load_detector(self, **kwargs: object) -> AutoencoderTiny:
+        # ruff: noqa: ARG002
+        return AutoencoderTiny.from_pretrained(
+            self.model_id,
+            revision=self.REVISION,
+            torch_dtype=self.dtype,
+            local_files_only=self.local_files_only,
+        ).to(self.device)
+
+
+class AutoencoderKLBase(AutoencoderBase):
+    """AutoencoderKL VAE base class for both SD and SDXL."""
+
+    def _encode(self, *, image: torch.FloatTensor) -> torch.FloatTensor:
+        return self._detector.encode(image.to(self.device, self.dtype)).latent_dist.sample()
+
+    def _load_detector(self, **kwargs: object) -> AutoencoderKL:
+        # ruff: noqa: ARG002
+        return AutoencoderKL.from_pretrained(
+            self.model_id,
+            revision=self.REVISION,
+            torch_dtype=self.dtype,
+            local_files_only=self.local_files_only,
+        ).to(self.device)
+
+
+class TinyVaeForSd(AutoencoderTinyBase):
     """Tiny VAE for SD."""
 
     NAME = "tiny-vae-sd"
@@ -100,7 +120,7 @@ class TinyVaeForSd(TinyVaeBase):
     DEFAULT_DTYPE = torch.float32
 
 
-class TinyVaeForSdxl(TinyVaeBase):
+class TinyVaeForSdxl(AutoencoderTinyBase):
     """Tiny VAE for SDXL."""
 
     NAME = "tiny-vae-sdxl"
@@ -108,3 +128,13 @@ class TinyVaeForSdxl(TinyVaeBase):
     REVISION = "main"
     DEFAULT_DEVICE = "cpu"
     DEFAULT_DTYPE = torch.float32
+
+
+class SdxlVaeFp16Fix(AutoencoderKLBase):
+    """SDXL fp-16 fixed VAE for SDXL."""
+
+    NAME = "sdxl-vae-fp16-fix"
+    MODEL_ID = "madebyollin/sdxl-vae-fp16-fix"
+    REVISION = "main"
+    DEFAULT_DEVICE = "cuda"
+    DEFAULT_DTYPE = torch.float16
