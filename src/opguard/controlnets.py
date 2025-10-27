@@ -4,7 +4,7 @@
 # mypy: disable-error-code=override
 
 from collections.abc import Callable
-from typing import Final
+from typing import ClassVar
 
 import torch
 from controlnet_aux import HEDdetector
@@ -21,7 +21,7 @@ from .opguard_base import OpGuardBase
 class ControlnetBase(OpGuardBase):
     """Abstract class for controlnets."""
 
-    CALLABLE: Final[bool] = False
+    CALLABLE: ClassVar[bool] = False
 
     # Stub for callers
     def _caller(self, *args: object, **kwargs: object) -> None:
