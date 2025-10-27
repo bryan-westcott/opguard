@@ -178,8 +178,7 @@ override-dependencies = [
     "opencv-python-headless>=4.11.0.86 ; sys_platform == 'never'",
     "opencv-contrib-python-headless>=4.11.0.86 ; sys_platform == 'never'",
     "huggingface-hub>=0.34.0", # experimental for dwpose forced install
-    "onnxruntime-gpu>=1.16.2,<1.23", # experimental for dwpose forced install, for cuda 12x
-    "numpy>=1.26.4,<2",
+    "onnxruntime-gpu==1.17.0", # experimental for dwpose forced install, for cuda 12x, only 1.18+ available
 ]
 
 [tool.uv.sources]
