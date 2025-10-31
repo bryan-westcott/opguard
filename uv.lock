@@ -12,8 +12,6 @@ resolution-markers = [
 
 [manifest]
 overrides = [
-    { name = "huggingface-hub", specifier = ">=0.34.0" },
-    { name = "onnxruntime-gpu", specifier = ">=1.17,<1.23" },
     { name = "opencv-contrib-python-headless", marker = "sys_platform == 'never'", specifier = ">=4.11.0.86" },
     { name = "opencv-python", marker = "sys_platform == 'never'", specifier = ">=4.11.0.86" },
     { name = "opencv-python-headless", marker = "sys_platform == 'never'", specifier = ">=4.11.0.86" },
@@ -520,8 +518,8 @@ wheels = [
 
 [[package]]
 name = "easy-dwpose"
-version = "1.0.2"
-source = { registry = "https://pypi.org/simple" }
+version = "1.0.3"
+source = { git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?rev=507ccae#507ccae5880724d2f05468fad01501537afd0a85" }
 dependencies = [
     { name = "huggingface-hub" },
     { name = "imageio" },
@@ -530,14 +528,10 @@ dependencies = [
     { name = "numpy" },
     { name = "omegaconf" },
     { name = "onnxruntime", marker = "sys_platform == 'darwin'" },
-    { name = "onnxruntime-gpu" },
-    { name = "opencv-python", marker = "sys_platform == 'never'" },
+    { name = "onnxruntime-gpu", marker = "sys_platform == 'linux'" },
+    { name = "opencv-contrib-python" },
     { name = "torch" },
     { name = "tqdm" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/fa/40/b986641e8144968b31d2386bd2dbb0256f48e6c7f918f3bf43901b4e092a/easy_dwpose-1.0.2.tar.gz", hash = "sha256:ca34a84cad31985cec29d69e4a7d5d6973d8fe14438e2eb7a9ac1f698a58df5d", size = 14135, upload-time = "2024-11-18T13:02:20.586Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/66/44/0f1d0742e5892a2c75ef0ed6b26087e971f3d4f6f5e2836ef0e5e58a32c0/easy_dwpose-1.0.2-py3-none-any.whl", hash = "sha256:7fa070fde867b50433ba2d4c1095fb9d700b85c72314a212de01db3437daf8b1", size = 19001, upload-time = "2024-11-18T13:02:19.008Z" },
 ]
 
 [[package]]
@@ -736,9 +730,6 @@ wheels = [
 name = "humanfriendly"
 version = "10.0"
 source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pyreadline3", marker = "sys_platform == 'win32'" },
-]
 sdist = { url = "https://files.pythonhosted.org/packages/cc/3f/2c29224acb2e2df4d2046e4c73ee2662023c58ff5b113c4c1adac0886c43/humanfriendly-10.0.tar.gz", hash = "sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc", size = 360702, upload-time = "2021-09-17T21:40:43.31Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f0/0f/310fb31e39e2d734ccaa2c0fb981ee41f7bd5056ce9bc29b2248bd569169/humanfriendly-10.0-py2.py3-none-any.whl", hash = "sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477", size = 86794, upload-time = "2021-09-17T21:40:39.897Z" },
@@ -1918,7 +1909,7 @@ wheels = [
 
 [[package]]
 name = "onnxruntime"
-version = "1.16.2"
+version = "1.23.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "coloredlogs", marker = "sys_platform == 'darwin'" },
@@ -1929,8 +1920,10 @@ dependencies = [
     { name = "sympy", marker = "sys_platform == 'darwin'" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/91/cc/832a76b8776a4ab2c43d7295da43220b12667fa21087abe46b13295f1a67/onnxruntime-1.16.2-cp311-cp311-macosx_10_15_x86_64.whl", hash = "sha256:aa09d8d9d9a4dc2f6647b5135bb540da36e2d78206aaf14140ba73e05928c4f8", size = 7085970, upload-time = "2023-11-10T01:45:16.372Z" },
-    { url = "https://files.pythonhosted.org/packages/80/9e/77dfbe9e52675f7346c76a9785a914aa46ed575484568d93df417c814a30/onnxruntime-1.16.2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:68f8d3347f11fcc6256266c562e4314b8c6da3e30fc275052a2ab693540b17fd", size = 6230975, upload-time = "2023-11-10T01:45:28.969Z" },
+    { url = "https://files.pythonhosted.org/packages/44/be/467b00f09061572f022ffd17e49e49e5a7a789056bad95b54dfd3bee73ff/onnxruntime-1.23.2-cp311-cp311-macosx_13_0_arm64.whl", hash = "sha256:6f91d2c9b0965e86827a5ba01531d5b669770b01775b23199565d6c1f136616c", size = 17196113, upload-time = "2025-10-22T03:47:33.526Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/a8/3c23a8f75f93122d2b3410bfb74d06d0f8da4ac663185f91866b03f7da1b/onnxruntime-1.23.2-cp311-cp311-macosx_13_0_x86_64.whl", hash = "sha256:87d8b6eaf0fbeb6835a60a4265fde7a3b60157cf1b2764773ac47237b4d48612", size = 19153857, upload-time = "2025-10-22T03:46:37.578Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/9e/f748cd64161213adeef83d0cb16cb8ace1e62fa501033acdd9f9341fff57/onnxruntime-1.23.2-cp312-cp312-macosx_13_0_arm64.whl", hash = "sha256:b8f029a6b98d3cf5be564d52802bb50a8489ab73409fa9db0bf583eabb7c2321", size = 17195929, upload-time = "2025-10-22T03:47:36.24Z" },
+    { url = "https://files.pythonhosted.org/packages/91/9d/a81aafd899b900101988ead7fb14974c8a58695338ab6a0f3d6b0100f30b/onnxruntime-1.23.2-cp312-cp312-macosx_13_0_x86_64.whl", hash = "sha256:218295a8acae83905f6f1aed8cacb8e3eb3bd7513a13fe4ba3b2664a19fc4a6b", size = 19157705, upload-time = "2025-10-22T03:46:40.415Z" },
 ]
 
 [[package]]
@@ -1938,18 +1931,16 @@ name = "onnxruntime-gpu"
 version = "1.17.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "coloredlogs" },
-    { name = "flatbuffers" },
-    { name = "numpy" },
-    { name = "packaging" },
-    { name = "protobuf" },
-    { name = "sympy" },
+    { name = "coloredlogs", marker = "sys_platform != 'darwin'" },
+    { name = "flatbuffers", marker = "sys_platform != 'darwin'" },
+    { name = "numpy", marker = "sys_platform != 'darwin'" },
+    { name = "packaging", marker = "sys_platform != 'darwin'" },
+    { name = "protobuf", marker = "sys_platform != 'darwin'" },
+    { name = "sympy", marker = "sys_platform != 'darwin'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2b/94/2a2c05b5e8e5359e0c2cbb314d39e259d7e9853af768fbc0f7485d7ddcb5/onnxruntime_gpu-1.17.0-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:be0314afe399943904de7c1ca797cbcc63e6fad60eb85d3df6422f81dd94e79e", size = 192120077, upload-time = "2024-01-31T18:36:56.488Z" },
-    { url = "https://files.pythonhosted.org/packages/39/8e/1a5d62f3728ae4a124679189ffa652e73af65bcb77851f98ca4488c472e3/onnxruntime_gpu-1.17.0-cp311-cp311-win_amd64.whl", hash = "sha256:52125c24b21406d1431e43de1c98cea29c21e0cceba80db530b7e4c9216d86ea", size = 148630481, upload-time = "2024-01-31T18:37:06.309Z" },
     { url = "https://files.pythonhosted.org/packages/7d/0b/97e07445993b25a1770f50eed055dea571b815f086d95ab8d729bd5f4ca0/onnxruntime_gpu-1.17.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:bb802d8033885c412269f8bc8877d8779b0dc874df6fb9df8b796cba7276ad66", size = 192111837, upload-time = "2024-01-31T18:37:19.081Z" },
-    { url = "https://files.pythonhosted.org/packages/2e/e4/b10745c8dc0d324d6dfceea9d5240a8c37d3028879107fc31d014ccaa07f/onnxruntime_gpu-1.17.0-cp312-cp312-win_amd64.whl", hash = "sha256:8c43533e3e5335eaa78059fb86b849a4faded513a00c1feaaa205ca5af51c40f", size = 148631195, upload-time = "2024-01-31T18:37:32.591Z" },
 ]
 
 [[package]]
@@ -2003,7 +1994,6 @@ dependencies = [
     { name = "matplotlib" },
     { name = "mediapipe" },
     { name = "numpy" },
-    { name = "onnxruntime-gpu" },
     { name = "opencv-contrib-python" },
     { name = "pandas" },
     { name = "pillow" },
@@ -2082,15 +2072,14 @@ requires-dist = [
     { name = "bitsandbytes", specifier = ">=0.46.0" },
     { name = "controlnet-aux", specifier = ">=0.0.10" },
     { name = "diffusers", git = "https://github.com/huggingface/diffusers.git?tag=v0.33.1" },
-    { name = "easy-dwpose", specifier = ">=1.0.2" },
-    { name = "huggingface-hub", specifier = "==0.24.6" },
+    { name = "easy-dwpose", git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?rev=507ccae" },
+    { name = "huggingface-hub", specifier = ">=0.24.6" },
     { name = "hypothesis", marker = "extra == 'test'" },
     { name = "instantstyle-plus", git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git?rev=88bd1c2" },
     { name = "loguru" },
     { name = "matplotlib", specifier = ">=3.10.1" },
     { name = "mediapipe", specifier = ">=0.10.21" },
     { name = "numpy", specifier = ">=1.26.4,<2" },
-    { name = "onnxruntime-gpu" },
     { name = "opencv-contrib-python", specifier = "==4.11.0.86" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "pillow", specifier = ">=11.1.0" },
@@ -2471,15 +2460,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b3/ff/4d865cd0166b3e0b0b09b1f5399114fe27c836b74f45f580d61efecf28dd/pyrallis-0.3.1.tar.gz", hash = "sha256:ab7298f31c633d4858ec3b045a30e6cc9b9f7ab50f21ea93aa3fb28532ac4b6e", size = 33799, upload-time = "2022-03-14T08:23:25.805Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7e/21/896ce8acd58566f38ffa179b833fd52b4c285fd4e90842ad6b8362372639/pyrallis-0.3.1-py3-none-any.whl", hash = "sha256:632370b563486495f5f9e7caf86cddffab8351214a3bdc60ae0d23b261ebdb59", size = 33419, upload-time = "2022-03-14T08:23:24.193Z" },
-]
-
-[[package]]
-name = "pyreadline3"
-version = "3.5.4"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/0f/49/4cea918a08f02817aabae639e3d0ac046fef9f9180518a3ad394e22da148/pyreadline3-3.5.4.tar.gz", hash = "sha256:8d57d53039a1c75adba8e50dd3d992b28143480816187ea5efbd5c78e6c885b7", size = 99839, upload-time = "2024-09-19T02:40:10.062Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5a/dc/491b7661614ab97483abf2056be1deee4dc2490ecbf7bff9ab5cdbac86e1/pyreadline3-3.5.4-py3-none-any.whl", hash = "sha256:eaf8e6cc3c49bcccf145fc6067ba8643d1df34d604a1ec0eccbf7a18e6d3fae6", size = 83178, upload-time = "2024-09-19T02:40:08.598Z" },
 ]
 
 [[package]]

@@ -25,7 +25,7 @@ dependencies = [
     "accelerate>=1.7.0",
     "bitsandbytes>=0.46.0",
     "diffusers",
-    "huggingface-hub==0.24.6",
+    "huggingface-hub>=0.24.6",
     "instantstyle-plus",
     "matplotlib>=3.10.1",
     "mediapipe>=0.10.21",
@@ -47,8 +47,7 @@ dependencies = [
     "xformers>=0.0.29.post3",
     "controlnet-aux>=0.0.10",
     "requests>=2.32.5",
-    "easy-dwpose>=1.0.2",
-    "onnxruntime-gpu",
+    "easy-dwpose",
     "loguru",
 ]
 
@@ -178,8 +177,6 @@ override-dependencies = [
     "opencv-python>=4.11.0.86 ; sys_platform == 'never'",
     "opencv-python-headless>=4.11.0.86 ; sys_platform == 'never'",
     "opencv-contrib-python-headless>=4.11.0.86 ; sys_platform == 'never'",
-    "huggingface-hub>=0.34.0", # experimental for dwpose forced install
-    "onnxruntime-gpu>=1.17,<1.23", # experimental for dwpose forced install, for cuda 12x, only 1.18+ available
 ]
 
 [tool.uv.sources]
@@ -194,7 +191,9 @@ transformers = { git = "https://github.com/huggingface/transformers.git", tag = 
 # Note: a private repo
 #    set a store credential helper entry in .git-credentials:
 #       https://<user_id>:<accesstoken>@gitlab.com
-instantstyle-plus = { git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git", rev="88bd1c2" }
+instantstyle-plus = { git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git", rev = "88bd1c2" }
+# Fork of easy-dwpose that supports cuda 12.x
+easy-dwpose = { git = "https://github.com/bryan-westcott/easy-dwpose-fork.git", rev = "507ccae" }
 
 [[tool.uv.index]]
 # also set tool.uv.sources
