@@ -137,7 +137,7 @@ class SdxlTextToImage(StableDiffusionBase):
                 revision=self.REVISION,
                 variant=self.variant,
                 dtype=self.dtype,
-                vae=vae,
+                vae=vae.detector,
             )
         pipe.enable_xformers_memory_efficient_attention()
         pipe.enable_attention_slicing()
