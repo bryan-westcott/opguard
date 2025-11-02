@@ -491,7 +491,7 @@ wheels = [
 [[package]]
 name = "diffusers"
 version = "0.33.1"
-source = { git = "https://github.com/huggingface/diffusers.git?tag=v0.33.1#375ec930863ee74d0a0d5209f5627a5c89c752c2" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "filelock" },
     { name = "huggingface-hub" },
@@ -501,6 +501,10 @@ dependencies = [
     { name = "regex" },
     { name = "requests" },
     { name = "safetensors" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/82/cc/1ef6bdc99d3864f6d1ee11bdbe3708b9d33ce35e7671557f641897480956/diffusers-0.33.1.tar.gz", hash = "sha256:fc7f140295d2ec82b1e7474b77bb7057fc0686c14eadc54ca0e52a66527e18a2", size = 2896103, upload-time = "2025-04-10T05:20:29.135Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/7a/f08f610cea8a3395ad3b4f586db23bedb43c68db6c3261145a15e7b63126/diffusers-0.33.1-py3-none-any.whl", hash = "sha256:027469e74f289338eb24127409f8d60d840b1b7ce4b27ffcd3134fd3b8431567", size = 3554612, upload-time = "2025-04-10T05:20:24.774Z" },
 ]
 
 [[package]]
@@ -2070,7 +2074,7 @@ requires-dist = [
     { name = "accelerate", specifier = ">=1.7.0" },
     { name = "bitsandbytes", specifier = ">=0.46.0" },
     { name = "controlnet-aux", specifier = ">=0.0.10" },
-    { name = "diffusers", git = "https://github.com/huggingface/diffusers.git?tag=v0.33.1" },
+    { name = "diffusers", specifier = ">=0.33.1" },
     { name = "easy-dwpose", git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?tag=v1.0.3" },
     { name = "huggingface-hub", specifier = ">=0.24.6" },
     { name = "hypothesis", marker = "extra == 'test'" },
@@ -2098,7 +2102,7 @@ requires-dist = [
     { name = "torch", index = "https://download.pytorch.org/whl/cu124" },
     { name = "torchvision", index = "https://download.pytorch.org/whl/cu124" },
     { name = "tqdm", specifier = ">=4.67.1" },
-    { name = "transformers", git = "https://github.com/huggingface/transformers.git?tag=v4.56.1" },
+    { name = "transformers", specifier = ">=4.52.4" },
     { name = "xdoctest", marker = "extra == 'test'", specifier = ">=1.2.0" },
     { name = "xformers", specifier = ">=0.0.29.post3" },
 ]
@@ -3366,7 +3370,7 @@ wheels = [
 [[package]]
 name = "transformers"
 version = "4.56.1"
-source = { git = "https://github.com/huggingface/transformers.git?tag=v4.56.1#91393fe4cc3266a05bc0d129e34ff5f761bb46e2" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "filelock" },
     { name = "huggingface-hub" },
@@ -3378,6 +3382,10 @@ dependencies = [
     { name = "safetensors" },
     { name = "tokenizers" },
     { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/89/21/dc88ef3da1e49af07ed69386a11047a31dcf1aaf4ded3bc4b173fbf94116/transformers-4.56.1.tar.gz", hash = "sha256:0d88b1089a563996fc5f2c34502f10516cad3ea1aa89f179f522b54c8311fe74", size = 9855473, upload-time = "2025-09-04T20:47:13.14Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/71/7c/283c3dd35e00e22a7803a0b2a65251347b745474a82399be058bde1c9f15/transformers-4.56.1-py3-none-any.whl", hash = "sha256:1697af6addfb6ddbce9618b763f4b52d5a756f6da4899ffd1b4febf58b779248", size = 11608197, upload-time = "2025-09-04T20:47:04.895Z" },
 ]
 
 [[package]]

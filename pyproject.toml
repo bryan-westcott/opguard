@@ -24,7 +24,8 @@ version = "0.0.1"
 dependencies = [
     "accelerate>=1.7.0",
     "bitsandbytes>=0.46.0",
-    "diffusers",
+    "diffusers>=0.33.1",
+    "transformers>=4.52.4",
     "huggingface-hub>=0.24.6",
     "instantstyle-plus",
     "matplotlib>=3.10.1",
@@ -42,7 +43,6 @@ dependencies = [
     "torchvision",
     "torch",
     "tqdm>=4.67.1",
-    "transformers>=4.52.4",
     "xformers>=0.0.29.post3",
     "controlnet-aux>=0.0.10",
     "requests>=2.32.4",
@@ -183,9 +183,6 @@ override-dependencies = [
 #      in mainline pytorch but not 12.8 (or 11.8)
 torch = { index = "pytorch-cu"}
 torchvision = { index = "pytorch-cu"}
-diffusers = { git = "https://github.com/huggingface/diffusers.git", tag = "v0.33.1" }
-#transformers = { git = "https://github.com/huggingface/transformers.git", tag = "v4.52.4" }
-transformers = { git = "https://github.com/huggingface/transformers.git", tag = "v4.56.1" }
 # Note: a private repo
 #    set a store credential helper entry in .git-credentials:
 #       https://<user_id>:<accesstoken>@gitlab.com
