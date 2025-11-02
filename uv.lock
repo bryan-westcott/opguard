@@ -519,7 +519,7 @@ wheels = [
 [[package]]
 name = "easy-dwpose"
 version = "1.0.3"
-source = { git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?rev=507ccae#507ccae5880724d2f05468fad01501537afd0a85" }
+source = { git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?tag=v1.0.3#507ccae5880724d2f05468fad01501537afd0a85" }
 dependencies = [
     { name = "huggingface-hub" },
     { name = "imageio" },
@@ -2072,7 +2072,7 @@ requires-dist = [
     { name = "bitsandbytes", specifier = ">=0.46.0" },
     { name = "controlnet-aux", specifier = ">=0.0.10" },
     { name = "diffusers", git = "https://github.com/huggingface/diffusers.git?tag=v0.33.1" },
-    { name = "easy-dwpose", git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?rev=507ccae" },
+    { name = "easy-dwpose", git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?tag=v1.0.3" },
     { name = "huggingface-hub", specifier = ">=0.24.6" },
     { name = "hypothesis", marker = "extra == 'test'" },
     { name = "instantstyle-plus", git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git?rev=88bd1c2" },
