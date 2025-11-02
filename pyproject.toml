@@ -149,7 +149,6 @@ addopts = """
   --xdoctest-style=google
   --cov=opguard
   --cov-report=term-missing
-  -m "smoke"
 """
 # Declare marks
 # See decorators in actual test code
