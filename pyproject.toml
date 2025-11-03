@@ -1,18 +1,14 @@
-# These are boilerplate standard configuration options including development
-# tools, notebooks and popular linters/formatters/type-checkers
 
 # Quick start:
-#   Ensure python version matches in all:
-#       - pyproject.toml:project: 3.1x.*
-#       - pyproject.toml:linters: py31x
-#        - .pre-commit-config.yaml:language_version: python3.1x
 #   Run once:
 #       ./dev-scripts initialize-pre-commit.sh
 #   Initialize environment (as needed)
 #       source ./dev-scripts/dev-init
 #   Install editable package (once)
 #       uv pip install -e ".[test]"
-#   Run tests
+#   Run smoke test
+#       uv run pytest -m smoke
+#   Run all tests (slower)
 #       uv run pytest
 
 [project]
@@ -163,7 +159,7 @@ python_version = "3.11"
 # exclude packages without typehints
 follow_imports = "skip"
 files = ["src/"]
-exclude = ["checkpoints/", "test/", ".idea/", "__pycache/", "dreambooth", "lcm_distill", "notebooks"]
+exclude = ["checkpoints/", "test/", ".idea/", "__pycache/", "notebooks", ".vscode/"]
 disable_error_code = "import-untyped"
 # TODO: turn this on and fix any errors found
 #check_untyped_defs = true
@@ -171,7 +167,7 @@ disable_error_code = "import-untyped"
 
 [[tool.mypy.overrides]]
 # modules that mypy has no typehints for
-module = ["transformers.*", "polyfuzz", "nltk.*", "huggingface_hub.*", "statsmodels.*", "scipy.stats", "scipy.ndimage.*", "scipy.signal.*", "mediapipe", "runpod.*", "cog", "accelerate.*", "bitsandbytes", "datasets", "torchvision.*", "xformers", "skvideo.*", "prodigy_opt", "controlnet_aux"]
+module = ["transformers.*", "huggingface_hub.*", "accelerate.*", "bitsandbytes", "xformers", "controlnet_aux"]
 ignore_errors = true
 
 
@@ -179,44 +175,25 @@ ignore_errors = true
 # Exclude a variety of commonly ignored directories.
 src = ["src"]
 exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".git-rewrite",
-    ".hg",
-    ".ipynb_checkpoints",
-    ".ipynb",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".pyenv",
-    ".pytest_cache",
-    ".pytype",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
+    "**/checkpoints/",
+    "dev-scripts/",
+    ".git/",
+    ".ruff_cache/",
+    ".mypy_cache/",
+    ".pytest_cache/",
+    ".node_modules/",
+    ".venv/",
+    "venv/",
+    "**/.ipynb_checkpoints/",
+    "**/*.egg-info/**",
     ".vscode",
-    "__pypackages__",
-    "_build",
-    "buck-out",
+    "./idea/",
     "build",
     "dist",
-    "node_modules",
     "site-packages",
-    "venv",
-    ".checkpoints",
-    "./__pycache__/",
-    "./idea/",
-    ".mypy_cache",
-    "./test/",
-    "./idea/",
-    "./mypy_cache/",
-    "./test/",
-    "*dreambooth*",
-    "advanced_lora*",
-    "lcm_distill*",
+    "__pycache__/",
+    "test/",
+    "tests/",
 ]
 # Black uses 88, default is 240
 line-length = 120
@@ -235,10 +212,6 @@ fixable = ["ALL"]
 unfixable = []
 # Allow unused variables when underscore-prefixed.
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
-
-[tool.ruff.lint.pep8-naming]
-# explicitly allowed pep8 name violations, common with diffusers/opencv
-ignore-names = ["H", "W", "C", "HWC3", "bboxC"]
 
 [tool.ruff.lint.mccabe]
 # Allow more complexity for R&D projects
