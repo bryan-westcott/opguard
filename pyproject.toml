@@ -138,7 +138,7 @@ torchvision = { index = "pytorch-cu"}
 #       https://<user_id>:<accesstoken>@gitlab.com
 instantstyle-plus = { git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git", rev = "88bd1c2" }
 # Fork of easy-dwpose that supports cuda 12.x
-easy-dwpose = { git = "https://github.com/bryan-westcott/easy-dwpose-fork.git", tag = "v1.0.4" }
+easy-dwpose = { git = "https://github.com/bryan-westcott/easy-dwpose-fork.git", tag = "v1.0.5" }
 
 [[tool.uv.index]]
 # also set tool.uv.sources
