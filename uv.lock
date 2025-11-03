@@ -2020,7 +2020,7 @@ requires-dist = [
     { name = "instantstyle-plus", git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git?rev=88bd1c2" },
     { name = "loguru" },
     { name = "matplotlib", specifier = ">=3.10.1" },
-    { name = "numpy", specifier = ">2,<3" },
+    { name = "numpy", specifier = ">=1.26.4,<3" },
     { name = "opencv-contrib-python", specifier = "==4.11.0.86" },
     { name = "pillow", specifier = ">=11.1.0" },
     { name = "pyexiftool", specifier = ">=0.5.6" },
