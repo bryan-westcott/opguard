@@ -174,7 +174,7 @@ ignore_errors = true
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
 src = ["src"]
-exclude = [
+extend-exclude = [
     "**/checkpoints/",
     "dev-scripts/",
     ".git/",
