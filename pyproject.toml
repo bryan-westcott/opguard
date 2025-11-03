@@ -29,7 +29,6 @@ dependencies = [
     "huggingface-hub>=0.24.6",
     "instantstyle-plus",
     "matplotlib>=3.10.1",
-    "mediapipe>=0.10.21",
     "numpy>=1.26.4,<2",
     "opencv-contrib-python==4.11.0.86",
     "pillow>=11.1.0",
