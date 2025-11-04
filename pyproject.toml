@@ -90,10 +90,8 @@ pytest-slow = "opguard.tests.test:slow"
 testpaths = ["src/opguard/tests"]
 python_files = ["test.py"]
 # collect functions for possible use
-python_functions = ["smoke", "vae", "nlp", "sd", "control", "slow", "inversion"]
+python_functions = ["smoke", "vae", "nlp", "sd", "control", "slow", "inversion", "cpu", "gpu", "bfloat16", "fp16vae"]
 # Default flags: no stdout spam, show locals on failure, fail on unknown marks
-# Default test: just the `smoke` test
-# To run full tets: `pytest -m slow`
 addopts = """
   -q
   --strict-markers
