@@ -1049,11 +1049,14 @@ def device_guard(
     if device_normalized_override:
         # Override input
         device_normalized = device
+        logger.debug(f"Setting {device_normalized=} from device_normalized_override")
     elif device:
         device_normalized = normalize_device(device)
+        logger.debug(f"Setting {device_normalized=} from {device=} using normalize_device()")
     else:
         # no device provided
         device_normalized = None
+        logger.debug(f"No device provided, setting {device_normalized=} initially")
 
     # Check for no CUDA and set sane hardware-based defaults
     if not torch.cuda.is_available():
@@ -1063,14 +1066,16 @@ def device_guard(
             raise RuntimeError(message)
         # otherwise, fallback to cpu
         device_normalized = torch.device("cpu")
+        logger.debug(f"No cuda devices available, setting sane default of {device_normalized=}")
     elif not device:
         # sane hardware-dependent default if no device provided
         device_normalized = torch.device("cuda")
+        logger.debug(f"No device provided, and cuda available, setting sane default of {device_normalized=}")
 
     # Just return if we already have a device_list
     if device_list_override is not None:
         # Manual override, e.g., from prior call to this manager
-        logger.debug(f"Using {device_list_override=}")
+        logger.debug(f"Using device_list={device_list_override=}")
         return device_list_override, device_normalized
 
     # Only "auto", or "balanced" or None supported for now
@@ -1081,6 +1086,7 @@ def device_guard(
     # For cpu-only work loads, the device list is always a single cpu device
     # For systems with only one visible/available device, only "cuda:0" is valid
     if torch.cuda.device_count() <= 1:
+        logger.debug(f"Only one or zero cuda devices available, using {device_normalized=} for device_list")
         return [device_normalized], device_normalized
 
     # If device_map == "auto", then list all available cuda devices

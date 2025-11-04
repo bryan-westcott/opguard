@@ -251,6 +251,7 @@ class OpGuardBase(ABC):
                   with MyGuard(...) as g:
                       out = g(input_raw=...)
         """
+        logger.info(f"Initializing OpGuard {self.NAME} using {self.MODEL_ID}@{self.REVISION}")
         # ruff: noqa: PLR0913  (configurable util with sane defaults)
         # A placeholder for overriding MODEL_ID without mutating class
         self._model_id_override: str | None = None
