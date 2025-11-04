@@ -1615,11 +1615,7 @@ requires-dist = [
     { name = "bitsandbytes", specifier = ">=0.46.0" },
     { name = "controlnet-aux", specifier = ">=0.0.10" },
     { name = "diffusers", specifier = ">=0.33.1" },
-<<<<<<< HEAD
-    { name = "easy-dwpose", git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?tag=v1.0.5" },
-=======
     { name = "easy-dwpose", git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?tag=v1.0.2.post3" },
->>>>>>> 1c45ddc (Use v1.0.2.post3 instead of v1.0.5 for easy-dwpose-fork.  Use tagged)
     { name = "huggingface-hub", specifier = ">=0.24.6" },
     { name = "hypothesis", marker = "extra == 'test'" },
     { name = "instantstyle-plus", git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git?tag=v0.1.0" },
