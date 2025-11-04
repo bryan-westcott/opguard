@@ -1009,7 +1009,7 @@ def device_guard(
     device_list_override: list[torch.device] | None = None,
     device_normalized_override: torch.device | None = None,
 ) -> tuple[list[torch.device], torch.device]:
-    """Resolve and normalize deterministic list of devices from `device` or `device_map`.
+    """Resolve and normalize devices from `device` and/or `device_map`.
 
     Goals:
         * Provide normalized device - a torch.device with index, not strings or generic "cuda" device
