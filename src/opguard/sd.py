@@ -137,7 +137,11 @@ class SdxlTextToImage(StableDiffusionBase):
     REVISION = "main"
 
     def _load_detector(self) -> StableDiffusionXLPipeline:
-        with SdxlVaeFp16Fix() as vae:
+        with SdxlVaeFp16Fix(
+            device_override=self.device,
+            dtype_override=self.dtype,
+            device_map_override=self.device_map,
+        ) as vae:
             pipe = StableDiffusionXLPipeline.from_pretrained(
                 self.model_id,
                 revision=self.REVISION,
