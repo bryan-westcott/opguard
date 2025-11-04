@@ -360,6 +360,16 @@ class OpGuardBase(ABC):
                 only_load_export=self.only_load_export,
                 force_export_refresh=self.force_export_refresh,
             )
+        logger.info(
+            f"Loaded detector for {self.model_id}: {type(self._detector)}, "
+            f"dtype={getattr(self._detector, 'dtype', None)}, "
+            f"device={getattr(self._detector, 'device', None)}",
+        )
+        logger.info(
+            f"Loaded processor for {self.model_id}: {type(self._processor)}, "
+            f"dtype={getattr(self._processor, 'dtype', None)}, "
+            f"device={getattr(self._processor, 'device', None)}",
+        )
 
     def _free(self, *, clear_cache: bool = True, reason: str = "unspecified") -> None:
         """Free detector and processor (if applicable).
