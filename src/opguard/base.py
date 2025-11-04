@@ -251,7 +251,7 @@ class OpGuardBase(ABC):
                   with MyGuard(...) as g:
                       out = g(input_raw=...)
         """
-        logger.info(f"Initializing OpGuard {self.NAME} using {self.MODEL_ID}@{self.REVISION}")
+        logger.info(f"Initializing OpGuard {self.NAME} using {self.classname} from {self.MODEL_ID}@{self.REVISION}")
         # ruff: noqa: PLR0913  (configurable util with sane defaults)
         # A placeholder for overriding MODEL_ID without mutating class
         self._model_id_override: str | None = None
@@ -285,7 +285,10 @@ class OpGuardBase(ABC):
             revision=self.REVISION,
             local_hfhub_variant_check_only=local_hfhub_variant_check_only,
         )
-        logger.debug(f"Choices for {self.classname}: {self.dtype=}, {self.variant=}")
+        logger.info(
+            f"Choices for {self.NAME}: {self.dtype=}, {self.variant=}, "
+            f"{self.device=}, {self.device_map=}, {self.device_list=}",
+        )
 
         # prepare detector now
         if self.keep_warm:
@@ -342,11 +345,7 @@ class OpGuardBase(ABC):
         # Always indicate potentially unfreed
         self._is_freed = False
         # Now attemtp to load
-        logger.debug(
-            f"Loading model(s) for: model_id={self.model_id}, dtype={self.dtype}, "
-            f"variant={self.variant}, device={self.device}, "
-            f"device_list={self.device_list}",
-        )
+        logger.info(f"Loading model(s) for {self.NAME}: model_id={self.model_id}")
 
         # reset to empty
         if self.extra_info:
@@ -369,11 +368,14 @@ class OpGuardBase(ABC):
             f"dtype={getattr(self._detector, 'dtype', None)}, "
             f"device={getattr(self._detector, 'device', None)}",
         )
-        logger.info(
-            f"Loaded processor for {self.model_id}: {type(self._processor)}, "
-            f"dtype={getattr(self._processor, 'dtype', None)}, "
-            f"device={getattr(self._processor, 'device', None)}",
-        )
+        if self._processor:
+            logger.info(
+                f"Loaded processor for {self.model_id}: {type(self._processor)}, "
+                f"dtype={getattr(self._processor, 'dtype', None)}, "
+                f"device={getattr(self._processor, 'device', None)}",
+            )
+        else:
+            logger.debug("No processor loaded")
 
     def _free(self, *, clear_cache: bool = True, reason: str = "unspecified") -> None:
         """Free detector and processor (if applicable).
@@ -423,6 +425,7 @@ class OpGuardBase(ABC):
         Note: Will also detach (to cpu) all outputs to avoid dangling references tying up VRAM
         """
         # ruff: noqa: SIM117  (clarity is better)
+        logger.info(f"Running inference (call) for {self.NAME}...")
         with self.lazy_loader_context():
             # Autocast for proper precision, accounting for gradient needs, also stream synchronize
             # Note: dtype and device guard are already pre-checked in init

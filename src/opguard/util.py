@@ -1863,6 +1863,11 @@ def call_guard(
 
     Includes: eval_guard, grad_guard, autocast_guard, vram_guard
     """
+    logger.debug(
+        f"Guarding call with {need_grads=}, {sanitize_all_exceptions=}, "
+        f"{detach_outputs=}, {caller_fn=}, {effective_dtype=}, "
+        f"{device_list=}, {train_mode=}, {models=}",
+    )
     with (
         eval_guard(
             models_or_loader=models,
