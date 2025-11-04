@@ -112,7 +112,13 @@ class SdTinyNanoTextToImage(StableDiffusionBase):
         # Load TinyVAE using OpGuard wrapped version
         # Note: it may have different variant
         #       it also has its own model_id that it tracks
-        with TinyVaeForSd() as vae:
+        # Note: have vae match the device/dtype/device_map of the pipeline since
+        #       by design TinyVaeForSd defaults to cpu
+        with TinyVaeForSd(
+            device_override=self.device,
+            dtype_override=self.dtype,
+            device_map_override=self.device_map,
+        ) as vae:
             pipe.vae = vae.detector
 
         # Memory and performance tweaks
