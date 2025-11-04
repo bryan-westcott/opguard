@@ -13,7 +13,7 @@ from diffusers.pipelines.stable_diffusion_xl.pipeline_output import StableDiffus
 from PIL.Image import Image as PILImage
 from transformers import CLIPTextModel, CLIPTokenizer
 
-from .opguard_base import OpGuardBase
+from .base import OpGuardBase
 from .vae import SdxlVaeFp16Fix, TinyVaeForSd
 
 # We do not care about LSP substitutability, OpGuard is not used directly

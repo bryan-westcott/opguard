@@ -13,7 +13,7 @@ from transformers import (
 )
 from transformers.image_processing_base import BatchFeature
 
-from .opguard_base import OpGuardBase
+from .base import OpGuardBase
 
 
 class Blip1(OpGuardBase):

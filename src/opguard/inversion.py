@@ -19,8 +19,8 @@ from instantstyle_plus.utils.enums_utils import get_pipes
 from PIL.Image import Image as PILImage
 from torch import Tensor
 
+from .base import OpGuardBase
 from .nlp import Blip1
-from .opguard_base import OpGuardBase
 from .vae import SdxlVaeFp16Fix
 
 

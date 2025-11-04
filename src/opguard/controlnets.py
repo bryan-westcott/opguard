@@ -15,7 +15,7 @@ from diffusers.pipelines.marigold.pipeline_marigold_normals import MarigoldNorma
 from easy_dwpose import DWposeDetector
 from PIL.Image import Image as PILImage
 
-from .opguard_base import OpGuardBase
+from .base import OpGuardBase
 
 
 class ControlnetBase(OpGuardBase):

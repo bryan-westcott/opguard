@@ -1009,7 +1009,7 @@ def device_guard(
     device_list_override: list[torch.device] | None = None,
     device_normalized_override: torch.device | None = None,
 ) -> tuple[list[torch.device], torch.device]:
-    """Resolve a deterministic list of devices from `device` and/or `device_map` and normalize devices.
+    """Resolve and normalize deterministic list of devices from `device` or `device_map`.
 
     Goals:
         * Provide normalized device - a torch.device with index, not strings or generic "cuda" device
@@ -1272,7 +1272,7 @@ def variant_guard(
             logger.debug(f"Variant result {has_fp16=} in local huggingface_hub cache in variant_guard")
         else:
             logger.debug(
-                f"Checking huggingfacehub for variant due to {local_hfhub_variant_check_only=}in variant_guard",
+                f"Checking huggingface hub for variant due to {local_hfhub_variant_check_only=} in variant_guard",
             )
             # The very first time the model is cached, we must poll HF Hub
             # Online heuristic: look for common fp16/float16 filenames

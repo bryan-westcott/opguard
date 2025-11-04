@@ -68,7 +68,7 @@ from typing import Any, ClassVar
 import torch
 from loguru import logger
 
-from .opguard_util import (
+from .util import (
     DeviceLike,
     DeviceMapLike,
     call_guard,
