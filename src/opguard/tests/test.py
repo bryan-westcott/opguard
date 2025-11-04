@@ -335,7 +335,7 @@ def sdxl_inversion(
 
 
 @pytest.mark.inversion
-def ivnersion() -> None:
+def inversion() -> None:
     """Test inversion."""
     sdxl_inversion(test_image=None, generated_caption=None)
 
