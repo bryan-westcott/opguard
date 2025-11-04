@@ -763,7 +763,22 @@ def _cache_signature(
     dtype: torch.dtype,
     variant: str,
 ) -> tuple[str | None, dict[str, Any] | None]:
-    """Compute signature and associated metadata based on laoder, name and arguments."""
+    """Compute signature and associated metadata based on laoder, name and arguments.
+
+    The metadata used to compute the hash includes:
+        export name, loader function fingerprint, loader call hash, model id,
+        device, dtype, and variant.
+
+    The loader call accounts for args and kwargs, and is subsequently normalized
+        for consistent hashing, then hashed.  Only the hashed loader call is used
+        to produce the signature, but the normalized loader call is returned for
+        debugging.
+
+    Returns:
+        signature - hash of the signature metadata
+        signature_metadata - metadata used to compute the signature
+                            (normalized loader_call is added back in for debugging)
+    """
     # Lack of export name prevents local export
     if not export_name:
         return None, None
@@ -774,27 +789,29 @@ def _cache_signature(
 
     # Which kwargs are used to detect changes
     # Note: do not copy local_files_only, that may change in this gurad
-    loader_kwargs_filtered: dict[str, Any] = {}
     signature_kwargs = ("model_id", "device", "dtype", "variant")
-    loader_kwargs_filtered = {k: v for k, v in loader_kwargs.items() if k in signature_kwargs}
+    loader_kwargs_filtered: dict[str, Any] = {k: v for k, v in loader_kwargs.items() if k in signature_kwargs}
 
-    # Noirmalize call args/kwargs
+    # Normalize call args/kwargs for consistent hashing
     call_norm: dict[str, Any] = _canonicalize_call(args=(), kwargs=loader_kwargs_filtered)
     # Hash for matching
     call_hash: str = _hash_canonical(call_norm)
 
+    # Fingerprint of the loader function
+    loader_fingerprint: str = _loader_fingerprint(loader_fn)
+
     # construct signature
     signature_metadata: dict[str, Any] = {
         "name": export_name,
-        "loader_fn_fingerprint": _loader_fingerprint(loader_fn),
+        "loader_fn_fingerprint": loader_fingerprint,
         "loader_call_hash": call_hash,
         "model_id": model_id,
         "device": str(device),
         "dtype": str(dtype),
         "variant": variant,
     }
-    # compute expected signature
-    signature_expected = hashlib.sha256(
+    # compute signature hash based on metadata
+    signature = hashlib.sha256(
         json.dumps(
             signature_metadata,
             sort_keys=True,
@@ -805,7 +822,7 @@ def _cache_signature(
     # Put normalized call in for debugging, but match on signature
     signature_metadata["loader_call"] = call_norm
 
-    return signature_expected, signature_metadata
+    return signature, signature_metadata
 
 
 def _cache_match(
