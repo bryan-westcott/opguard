@@ -137,18 +137,20 @@ class SdxlTextToImage(StableDiffusionBase):
     REVISION = "main"
 
     def _load_detector(self) -> StableDiffusionXLPipeline:
-        with SdxlVaeFp16Fix(
+        # Load prior to pipe instead of in wrapper mode (debug messages more clear)
+        # Note: OpGuard will still free references on exit
+        vae = SdxlVaeFp16Fix(
             device_override=self.device,
             dtype_override=self.dtype,
             device_map_override=self.device_map,
-        ) as vae:
-            pipe = StableDiffusionXLPipeline.from_pretrained(
-                self.model_id,
-                revision=self.REVISION,
-                variant=self.variant,
-                dtype=self.dtype,
-                vae=vae.detector,
-            )
+        )
+        pipe = StableDiffusionXLPipeline.from_pretrained(
+            self.model_id,
+            revision=self.REVISION,
+            variant=self.variant,
+            dtype=self.dtype,
+            vae=vae.detector,
+        )
         pipe.enable_xformers_memory_efficient_attention()
         pipe.enable_attention_slicing()
 
