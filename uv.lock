@@ -436,7 +436,7 @@ wheels = [
 
 [[package]]
 name = "diffusers"
-version = "0.33.1"
+version = "0.35.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "filelock" },
@@ -448,9 +448,9 @@ dependencies = [
     { name = "requests" },
     { name = "safetensors" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/82/cc/1ef6bdc99d3864f6d1ee11bdbe3708b9d33ce35e7671557f641897480956/diffusers-0.33.1.tar.gz", hash = "sha256:fc7f140295d2ec82b1e7474b77bb7057fc0686c14eadc54ca0e52a66527e18a2", size = 2896103, upload-time = "2025-04-10T05:20:29.135Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/03/68/288ca23c7c05c73e87ffe5efffc282400ac9b017f7a9bb03883f4310ea15/diffusers-0.35.2.tar.gz", hash = "sha256:30ecd552303edfcfe1724573c3918a8462ee3ab4d529bdbd4c0045f763affded", size = 3366711, upload-time = "2025-10-15T04:05:17.213Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e7/7a/f08f610cea8a3395ad3b4f586db23bedb43c68db6c3261145a15e7b63126/diffusers-0.33.1-py3-none-any.whl", hash = "sha256:027469e74f289338eb24127409f8d60d840b1b7ce4b27ffcd3134fd3b8431567", size = 3554612, upload-time = "2025-04-10T05:20:24.774Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/2e/38d9824f8c6bb048c5ba21c6d4da54c29c162a46b58b3ef907a360a76d3e/diffusers-0.35.2-py3-none-any.whl", hash = "sha256:d50d5e74fdd6dcf55e5c1d304bc52cc7c2659abd1752740d736d7b54078b4db5", size = 4121649, upload-time = "2025-10-15T04:05:14.391Z" },
 ]
 
 [[package]]

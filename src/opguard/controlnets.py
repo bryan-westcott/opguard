@@ -87,12 +87,12 @@ class MarigoldDepthDetector(OpGuardBase):
     MODEL_ID = "prs-eth/marigold-depth-v1-1"
     REVISION = "main"
 
-    # TODO: temporarily use no variant, since not all components have .fp16, Check future diffusers if fixed
+    # Warning: older versions of diffusers may not support variant
     def _load_detector(self) -> MarigoldDepthPipeline:
         return MarigoldDepthPipeline.from_pretrained(
             self.model_id,
             revision=self.REVISION,
-            variant=None,
+            variant=self.variant,
             torch_dtype=self.dtype,
         ).to(self.device)
 
@@ -176,12 +176,12 @@ class MarigoldNormalsDetector(OpGuardBase):
     MODEL_ID = "prs-eth/marigold-normals-v1-1"
     REVISION = "main"
 
-    # TODO: temporarily use no variant, since not all components have .fp16, Check future diffusers if fixed
+    # Warning: older versions of diffusers may not support variant
     def _load_detector(self) -> MarigoldNormalsPipeline:
         return MarigoldNormalsPipeline.from_pretrained(
             self.model_id,
             revision=self.REVISION,
-            variant=None,
+            variant=self.variant,
             torch_dtype=self.dtype,
         ).to(self.device)
 
