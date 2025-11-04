@@ -1146,20 +1146,22 @@ def dtype_guard(
         logger.debug(f"Using {dtype_override=}")
         return dtype_override
 
-    # If bfloat16 is desired, check that it is available
+    # Check for invalid float16/bfloat16 requests in cpu mode
+    if dtype_desired in (torch.float16, torch.bfloat16):
+        if any(device.type == "cpu" for device in device_list):
+            logger.warning(f"CPU devices do not support {dtype_desired=}, falling back to float32")
+            return torch.float32
+        return torch.float16
+
+    # check for unsupported bfloat16 requests
     if dtype_desired == torch.bfloat16:
         if not all(device_supports_bfloat16(d) for d in device_list):
             logger.warning("All devices do not support dtype_desired=='bfloat16', falling back to float16")
             return torch.float16
         return torch.bfloat16
 
-    # Check if not in cpu mode
-    if dtype_desired == torch.float16:
-        if any(device.type == "cpu" for device in device_list):
-            logger.warning("CPU devices do not support dtype_desired=='float16', falling back to float32")
-            return torch.float32
-        return torch.float16
-
+    if dtype_desired != torch.float32:
+        logger.warning(f"Unsupported dtype provided: {dtype_desired=}, falling back to float32")
     return torch.float32
 
 
