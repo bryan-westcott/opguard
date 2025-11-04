@@ -342,7 +342,11 @@ class OpGuardBase(ABC):
         # Always indicate potentially unfreed
         self._is_freed = False
         # Now attemtp to load
-        logger.debug("Loading models")
+        logger.debug(
+            f"Loading model(s) for: model_id={self.model_id}, dtype={self.dtype}, "
+            f"variant={self.variant}, device={self.device}, "
+            f"device_list={self.device_list}",
+        )
 
         # reset to empty
         if self.extra_info:

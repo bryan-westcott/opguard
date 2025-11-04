@@ -967,9 +967,11 @@ def _cache_export_model(
         # Sanity check
         model_dtype = getattr(model, "dtype", None)
         if model_dtype and (str(model_dtype) != signature_metadata["dtype"]):
+            model_device = getattr(model, "device", None)
             message = (
                 f"Unexpected mismatch of signature dtype ({signature_metadata['dtype']}) "
-                f"and model dtype ({model_dtype})"
+                f"and model dtype ({model_dtype}) for {signature_metadata['name']} on "
+                f"device={model_device}"
             )
             raise ValueError(message)
 
