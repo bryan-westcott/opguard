@@ -63,7 +63,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Generator
 from contextlib import contextmanager
 from inspect import isabstract
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 import torch
 from loguru import logger
@@ -158,6 +158,8 @@ class OpGuardBase(ABC):
     DEFAULT_DEVICE_MAP: ClassVar[DeviceMapLike] = "auto"
     # Whether honored is compute capability and hardware dependent
     DTYPE_PREFERENCE: ClassVar[torch.dtype] = torch.bfloat16
+    # Whether to use safetensors for loading (override to False if not available)
+    USE_SAFETENSORS: ClassVar[bool] = True
     # Whether gradients are needed
     NEED_GRADS: ClassVar[bool] = False
     # Whether class is callable (only False in special cases, e.g., pipe components)
@@ -255,6 +257,9 @@ class OpGuardBase(ABC):
         # ruff: noqa: PLR0913  (configurable util with sane defaults)
         # A placeholder for overriding MODEL_ID without mutating class
         self._model_id_override: str | None = None
+        # For overrideing use_safetensors
+        # Note: can only overide with True
+        self._use_safetensors_override: Literal[True] | None = None
 
         # Control logic
         # Set this if in context manager to avoid freeing each iteration
@@ -315,6 +320,7 @@ class OpGuardBase(ABC):
             "DEFAULT_DEVICE",
             "DEFAULT_DEVICE_MAP",
             "DTYPE_PREFERENCE",
+            "USE_SAFETENSORS",
         ]:
             val = getattr(cls, attr, None)
             if (val == "") or (val is None):
@@ -334,6 +340,23 @@ class OpGuardBase(ABC):
     def model_id(self, value: str) -> None:
         """Model id setter, to _model_id_override witout class muatation."""
         self._model_id_override = value
+
+    @property
+    def use_safetensors(self) -> bool:
+        """Return the Huggingface ID for the core model weights.
+
+        Note: from type(self).USE_SAFETENSORS unles self._use_safetensors_override not None.
+        """
+        # Note: may b
+        return self._use_safetensors_override if self._use_safetensors_override else self.USE_SAFETENSORS
+
+    @use_safetensors.setter
+    def use_safetensors(self, value: bool) -> None:
+        """Model id setter, to _use_safetensors_override witout class muatation."""
+        if value is False:
+            message = "Cannot override USE_SAFETENSORS with False"
+            raise ValueError(message)
+        self._use_safetensors_override = value
 
     @property
     def classname(self) -> str:
@@ -362,6 +385,7 @@ class OpGuardBase(ABC):
                 export_name=f"{self.NAME}-detector",
                 only_load_export=self.only_load_export,
                 force_export_refresh=self.force_export_refresh,
+                use_safetensors=self.USE_SAFETENSORS,
             )
         logger.info(
             f"Loaded detector for {self.model_id}: {type(self._detector)}, "
