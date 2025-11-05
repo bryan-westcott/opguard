@@ -752,6 +752,16 @@ def _cache_export_path(*, export_name: str | None, variant: str, subdir: str = "
     return export_dir.resolve()
 
 
+def _hash_shortener(hash_or_none: str | None) -> str:
+    """Return first 7 characters of a hash with ellipses or else the string None."""
+    return str(hash_or_none)[0:7] + "..." if hash_or_none else "None"
+
+
+def _metadata_hash_shortener(metadata: dict[str, Any]) -> dict[str, Any]:
+    """Shorten hashes of any appropriate metadata entries."""
+    return metadata | {k: _hash_shortener(v) for k, v in metadata.items() if (("fingerprint" in k) or ("hash" in k))}
+
+
 def _cache_signature(
     *,
     export_name: str | None,
@@ -817,16 +827,15 @@ def _cache_signature(
             default=str,
         ).encode(),
     ).hexdigest()
+    logger.debug(
+        f"Signature for {export_name}: metadata hash: {_hash_shortener(signature)}, "
+        f"metadata: {_metadata_hash_shortener(signature_metadata)}",
+    )
 
     # Put normalized call in for debugging, but match on signature
     signature_metadata["loader_call"] = call_norm
 
     return signature, signature_metadata
-
-
-def _hash_shortener(hash_or_none: str | None) -> str:
-    """Return first 7 characters of a hash with ellipses or else the string None."""
-    return str(hash_or_none)[0:7] + "..." if hash_or_none else "None"
 
 
 def _cache_match(
