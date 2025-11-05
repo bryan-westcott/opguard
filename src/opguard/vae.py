@@ -12,7 +12,7 @@ from .base import OpGuardBase
 
 
 class AutoencoderBase(OpGuardBase):
-    """Tiny VAE base class for both SD and SDXL."""
+    """Tiny VAE and Autoencoder KL base class for both SD and SDXL."""
 
     def _load_processor(self, **kwargs: object) -> VaeImageProcessor:
         return VaeImageProcessor(vae_scale_factor=8)
@@ -86,12 +86,13 @@ class AutoencoderTinyBase(AutoencoderBase):
 
     def _load_detector(self, **kwargs: object) -> AutoencoderTiny:
         # ruff: noqa: ARG002
-        return AutoencoderTiny.from_pretrained(
+        vae = AutoencoderTiny.from_pretrained(
             self.model_id,
             revision=self.REVISION,
             torch_dtype=self.dtype,
             local_files_only=self.local_files_only,
-        ).to(self.device)
+        )
+        return vae.to(self.device)  # will give issues without to-device for gpu even with device map
 
 
 class AutoencoderKLBase(AutoencoderBase):
@@ -102,12 +103,17 @@ class AutoencoderKLBase(AutoencoderBase):
 
     def _load_detector(self, **kwargs: object) -> AutoencoderKL:
         # ruff: noqa: ARG002
-        return AutoencoderKL.from_pretrained(
+        vae = AutoencoderKL.from_pretrained(
             self.model_id,
             revision=self.REVISION,
             torch_dtype=self.dtype,
+            device_map=self.device_map,
             local_files_only=self.local_files_only,
-        ).to(self.device)
+            use_safetensors=True,
+        )
+        if self.device_map is None:
+            vae = vae.to(self.device)
+        return vae
 
 
 class VaeTinyForSd(AutoencoderTinyBase):
@@ -118,6 +124,7 @@ class VaeTinyForSd(AutoencoderTinyBase):
     REVISION = "main"
     DEFAULT_DEVICE = "cpu"
     DEFAULT_DTYPE = torch.float32
+    DEFAULT_DEVICE_MAP = "cuda"  # will ignore for cpu
 
 
 class VaeTinyForSdxl(AutoencoderTinyBase):
@@ -128,6 +135,7 @@ class VaeTinyForSdxl(AutoencoderTinyBase):
     REVISION = "main"
     DEFAULT_DEVICE = "cpu"
     DEFAULT_DTYPE = torch.float32
+    DEFAULT_DEVICE_MAP = "cuda"  # will ignore for cpu
 
 
 class VaeSdxlFp16Fix(AutoencoderKLBase):
@@ -137,4 +145,5 @@ class VaeSdxlFp16Fix(AutoencoderKLBase):
     MODEL_ID = "madebyollin/sdxl-vae-fp16-fix"
     REVISION = "main"
     DEFAULT_DEVICE = "cuda"
-    DEFAULT_DTYPE = torch.float16
+    DEFAULT_DTYPE = torch.bfloat16
+    DEFAULT_DEVICE_MAP = "cuda"
