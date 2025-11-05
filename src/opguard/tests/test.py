@@ -172,9 +172,11 @@ def hstack_numpy(images: list[PILImage]) -> PILImage:
 def _sdxl_vae_roundtrip(*, device: str | torch.device = "cuda", dtype: torch.dtype = torch.bfloat16, **kwargs) -> None:
     """Tiny round-trip VAE that exercises OpGuard with various device/dtypes."""
     # ruff: noqa: ANN003  (too restrictive on tests)
-    logger.info(f"Running smoke test with {device=}, {dtype=}, {kwargs=}")
 
     with VaeSdxlFp16Fix(device_override=device, dtype_override=dtype, **kwargs) as vae:
+        logger.info(
+            f"Running vae-for-sdxl roundtrip test for {type(vae).__name__} with: {device=}, {dtype=}, {kwargs=}",
+        )
         input_image = load_test_image(final_size=(512, 512), allow_direct_download=False)
         output_image = vae(input_raw=input_image, mode="encode-decode")
     assert input_image.size == output_image.size
@@ -183,9 +185,8 @@ def _sdxl_vae_roundtrip(*, device: str | torch.device = "cuda", dtype: torch.dty
 def _tiny_vae_roundtrip(*, device: str | torch.device, dtype: torch.dtype, **kwargs) -> None:
     """Tiny round-trip VAE that exercises OpGuard with various device/dtypes."""
     # ruff: noqa: ANN003  (too restrictive on tests)
-    logger.info(f"Running smoke test with {device=}, {dtype=}, {kwargs=}")
-
     with VaeTinyForSd(device_override=device, dtype_override=dtype, **kwargs) as vae:
+        logger.info(f"Running vae-tiny roundtrip test for {type(vae).__name__} with: {device=}, {dtype=}, {kwargs=}")
         input_image = load_test_image(final_size=(512, 512), allow_direct_download=False)
         output_image = vae(input_raw=input_image, mode="encode-decode")
     assert input_image.size == output_image.size
