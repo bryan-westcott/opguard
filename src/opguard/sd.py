@@ -4,6 +4,7 @@ import torch
 from diffusers import BitsAndBytesConfig as DiffusersBitsAndBytesConfig
 from diffusers import (
     DDPMScheduler,
+    DiffusionPipeline,
     StableDiffusionPipeline,
     StableDiffusionXLPipeline,
     UNet2DConditionModel,
@@ -48,17 +49,19 @@ class StableDiffusionBase(OpGuardBase):
         return self._postprocess(output_raw=output_raw)  # outupt_proc
 
     def _load_detector(self) -> StableDiffusionXLPipeline | StableDiffusionPipeline:
-        pipe = StableDiffusionXLPipeline.from_pretrained(
+        pipe = DiffusionPipeline.from_pretrained(
             self.model_id,
             revision=self.REVISION,
             variant=self.variant,
-            dtype=self.dtype,
+            torch_dtype=self.dtype,
+            device_map=self.device_map,
+            use_safetensors=True,
         )
         pipe.enable_xformers_memory_efficient_attention()
         pipe.enable_attention_slicing()
-
-        # Final device/dtype placement, with to() applied after VRAM savers
-        return pipe.to(self.device)
+        if self.device_map is None:
+            pipe = pipe.to(self.device)
+        return pipe
 
 
 class SdTinyNanoTextToImage(StableDiffusionBase):
@@ -135,6 +138,9 @@ class SdxlTextToImage(StableDiffusionBase):
     NAME = "sdxl"
     MODEL_ID = "stabilityai/stable-diffusion-xl-base-1.0"
     REVISION = "main"
+    DEFAULT_DEVICE = "cuda"
+    DEFAULT_DTYPE = torch.bfloat16
+    DEFAULT_DEVICE_MAP = "cuda"
 
     def _load_detector(self) -> StableDiffusionXLPipeline:
         # Load prior to pipe instead of in wrapper mode (debug messages more clear)
@@ -148,11 +154,13 @@ class SdxlTextToImage(StableDiffusionBase):
             self.model_id,
             revision=self.REVISION,
             variant=self.variant,
-            dtype=self.dtype,
+            torch_dtype=self.dtype,
+            device_map=self.device_map,
+            use_safetensors=True,
             vae=vae.detector,
         )
         pipe.enable_xformers_memory_efficient_attention()
         pipe.enable_attention_slicing()
-
-        # Final device/dtype placement, with to() applied after VRAM savers
-        return pipe.to(self.device)
+        if self.device_map is None:
+            pipe = pipe.to(self.device)
+        return pipe
