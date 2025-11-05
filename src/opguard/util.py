@@ -696,60 +696,56 @@ def _hash_canonical(obj: dict[str, Any]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _cache_variant_override(*, export_name: str | None, dtype: torch.dtype, variant: str) -> tuple[str | None, str]:
-    """Set variant based on dtype, even variants not in HF Hub or transformer models.
+def _cache_location_info(
+    *,
+    base_export_name: str | None,
+    dtype: torch.dtype,
+    exports_subdir: str = "exports",
+) -> tuple[str | None, str | None, Path | None]:
+    """Get export name,  variant and dir based on base_export_name and dtype.
 
-    Even though diffusers only supports variant in from_pretrained, we
-         will also export variants for transformers models indicated
-          via directory name and metadata
-
-    Note: will bypass if export_name is None
+    Notes:
+    * Even though diffusers only supports variant in from_pretrained, we
+        will also export variants for transformers models indicated
+        via directory name and metadata
+    * Will bypass if base_export_name is None
+    * Will produce directory parallel to hub cache dir, with name in subdir argument
+        * Typically:
+            .../.cache/huggingface/hub/... -> .../.cache/huggingface/<subidr>/...
 
     Input:
-        export_name - export name without variant in it, None indicates
+        base_export_name - export name without variant in it, None indicates
                       no export being used
         dtype - torch dtype
+        exports_subdir - the subdirectory under hf-hub cache dir parent (e.g., exports)
     Returns:
         export_name - appended with "-fp16" if dtype is float16 or bfloat16
-        variant - export variant (even if not in HF hub or for transformers),
+        export_variant - export variant (even if not in HF hub or for transformers),
                   or returns variant input if export_name is None
+        export_dir - base directory for all exports (parallel to huggingvface hub cache dir)
     """
-    # Ensure explictly no variant input
-    if not isinstance(variant, str):
-        message = "Variant must be string, use '' for no variant"
-        raise TypeError(message)
-    if export_name:
-        # Variant in cache mode depends only on dtype, not what is in HF hub
-        if dtype in (torch.float16, torch.bfloat16):
-            # Half precision detected, make new variant
-            variant = "fp16"
-            # Variants in separate directory for maintainability
-            export_name += "-" + variant
-        elif variant:
-            # Full precision mode, no variant needed, but check for problems
-            # A half-precision variant input with full-precision dtype
-            # should not happen
-            message = f"Unexpected variant ({variant}) provided on non-half-precision input"
-            raise ValueError(message)
-    return export_name, variant
-
-
-# Determine export dir, checking for issues
-def _cache_export_path(*, export_name: str | None, variant: str, subdir: str = "exports") -> Path | None:
-    """Compute export directory parallel to huggingface hub cache dir.
-
-    Will produce directory parallel to hub cache dir, with name in subdir argument
-    Typically:
-        .../.cache/huggingface/hub/... -> .../.cache/huggingface/<subidr>/...
-    """
-    if not export_name:
-        return None
-    if variant not in export_name:
-        message = f"Variant identifier '{variant}' not in {export_name=}, run _cache_variant_override first"
-        raise ValueError(message)
-    # export_dir
-    export_dir = hf_hub_cache_dir().parent / subdir / repo_folder_name(repo_id=export_name, repo_type="model")
-    return export_dir.resolve()
+    # Default to nothing
+    export_name: str | None = base_export_name
+    # Always None since not all models support the variant arg
+    # but also put a suffix in the export name
+    export_variant: str | None = None
+    export_dir: Path | None = None
+    if base_export_name is not None:
+        # If half precision detected, make new variant, regardless if exits in hub
+        export_suffix: str | None = "fp16" if dtype in (torch.float16, torch.bfloat16) else None
+        # Variants in separate directory for maintainability
+        if export_suffix is not None:
+            export_name = base_export_name + "-" + export_suffix
+        # export_dir
+        export_dir = (
+            hf_hub_cache_dir().parent / exports_subdir / repo_folder_name(repo_id=export_name, repo_type="model")
+        ).resolve()
+    logger.debug(
+        f"Export {'requested' if base_export_name else 'not requested'} "
+        f"(due to {base_export_name=}) and {dtype=}, "
+        f"setting: {export_name=}, {export_variant=}, {export_dir=}",
+    )
+    return export_name, export_variant, export_dir
 
 
 def _hash_shortener(hash_or_none: str | None) -> str:
@@ -774,7 +770,7 @@ def _cache_signature(
     model_id: str,
     device: torch.device,
     dtype: torch.dtype,
-    variant: str,
+    export_variant: str | None,
 ) -> tuple[str | None, dict[str, Any] | None]:
     """Compute signature and associated metadata based on laoder, name and arguments.
 
@@ -821,7 +817,7 @@ def _cache_signature(
         "model_id": model_id,
         "device": str(device),
         "dtype": str(dtype),
-        "variant": variant,
+        "variant": export_variant,
     }
     # compute signature hash based on metadata
     signature = hashlib.sha256(
@@ -885,6 +881,8 @@ def _cache_get_loader_overrides(
     only_load_export: bool,
     force_export_refresh: bool,
     local_files_only_on_refresh: bool,
+    use_safetensors: bool,
+    export_variant: str | None,
 ) -> dict[str, bool | str]:
     """Compute kwargs to provide to loader to use local export, if applicable.
 
@@ -902,8 +900,12 @@ def _cache_get_loader_overrides(
         # resolve the export directory
         logger.debug(f"Setting {model_id=} to {export_dir=}")
         overrides["model_id"] = export_dir
-        logger.debug("Setting local_files_only to True")
+        logger.debug("Setting local_files_only to True (for all exports)")
         overrides["local_files_only"] = True
+        logger.debug("Setting use_safetensors to True (for all exports)")
+        overrides["use_safetensors"] = True
+        logger.debug(f"Setting variant to {export_variant} (for all exports)")
+        overrides["variant"] = export_variant
     else:
         logger.debug(f"Not importing in cache_guard due to {match=}, {force_export_refresh=}")
         # Either it doesn't match or we want to force a refresh
@@ -915,7 +917,10 @@ def _cache_get_loader_overrides(
         logger.debug(f"Leaving {model_id=} unchanged")
         logger.debug(f"Overriding local_files_only to {local_files_only_on_refresh=}")
         overrides["local_files_only"] = local_files_only_on_refresh
+        logger.debug(f"Overriding use_safetensors to {use_safetensors=}")
+        overrides["use_safetensors"] = use_safetensors
     # work with a copy, then override
+    logger.debug(f"Final cache overrides: {overrides=}")
     return overrides
 
 
@@ -951,6 +956,7 @@ def _cache_apply_loader_overrides(
         else:
             message = f"No target to override {key}"
             raise ValueError(message)
+        logger.debug(f"Overriding: {key} with {value}")
 
     return new_kwargs
 
@@ -985,7 +991,7 @@ def _cache_export_model(
         if not signature_metadata or not signature:
             message = "Cannot export without signature metadata and signature"
             raise ValueError(message)
-        # Sanity check
+        # Sanity check that dtypes match
         model_dtype = getattr(model, "dtype", None)
         if model_dtype and (str(model_dtype) != signature_metadata["dtype"]):
             model_device = getattr(model, "device", None)
@@ -1022,7 +1028,11 @@ def _cache_export_model(
         }
         logger.debug(f"Model {type(model).__name__} metadata={_metadata_hash_shortener(metadata)}")
         # Add variant if appropriate
-        save_kwargs: dict[str, Any] = {}
+        save_kwargs: dict[str, Any] = {
+            "safe_serialization": True,  # Always use safetensors
+        }
+        # Put variant as save kwarg, but only if in metatada and diffusers
+        # (transformers does not support variant)
         if (base_module == "diffusers") and ("variant" in metadata):
             save_kwargs = {"variant": metadata["variant"]}
             logger.debug(f"Adding {save_kwargs['variant']=} to save_pretrained")
@@ -1494,6 +1504,7 @@ class LoaderParams(Protocol):
     variant: str
     local_files_only: bool
     revision: str
+    use_safetensors: bool
 
 
 def cache_guard(
@@ -1501,10 +1512,11 @@ def cache_guard(
     loader_fn: Callable[..., Any],
     loader_params_obj: LoaderParams | None = None,
     loader_kwargs: dict[str, Any] | None = None,
-    export_name: str | None = None,
+    base_export_name: str | None = None,
     only_load_export: bool = False,
     force_export_refresh: bool = False,
     local_files_only_on_refresh: bool = False,
+    use_safetensors: bool = True,
 ) -> object:
     """Load a locally **exported** model by name, or (optionally) refresh that export.
 
@@ -1520,16 +1532,25 @@ def cache_guard(
     the export is rebuilt via ``loader_fn`` and re-saved alongside a new
     ``metadata.json`` containing the signature.
 
+    Parameters may be provided by one (and only one) of the following methods
+    (where cache_guard will override locally as needed for cache operations)
+        - loader_kwargs: a dictionary of kwargs to provide to the loader
+        - loader_params_obj: an object with attrs in LoaderParams
+        - from loader_fn.__self__: if loader_fn is a bound method
+
     Parameters
     ----------
     loader_fn : Callable[..., Any]
         Function that builds and returns an HF object supporting
         ``save_pretrained``.
+    loader_params_obj: an object that has at lease the attributes in LoaderParams
+        (if both this and loader_kwargs are None, it will check if loader_fn
+        is a bound method and attemt to retrieve loader_fn.__self__)
     loader_kwargs : dict[str, Any]
         Must provide: 'model_id', 'dtype', 'device', 'variant', 'local_files_only'
         For no variant: use "" not None
         Note: if positional args needed in laoder, use them from kwargs
-    export_name : str | None
+    base_export_name : str | None
         If None, then no import/export will occur (just huggingface_hub which,
         may or may not be cached locally).
         A **local** identifier for the assembled model. This does not need to
@@ -1545,6 +1566,9 @@ def cache_guard(
     local_files_only_on_refresh: bool, default False
         Force use of local files only for hfhub on refresh
         (exports do not exist anywhere except locally)
+    use_safetensors: bool, default True
+        Load *.safetensors files from hub
+        (all exports will use safe_serialization regardless of this)
 
     Returns
     -------
@@ -1580,12 +1604,23 @@ def cache_guard(
     - consider a fast mode and device_list ID check
     """
     # ruff: noqa: PLR0913
+    params_location = None
 
     # Check for params in loader self in case it is a bound method
     if (not loader_params_obj and not loader_kwargs) and hasattr(loader_fn, "__self__"):
         logger.debug("Bound method for loader_fn detected, using loader.__self__ for loader_params_obj")
         # Detect bound `self` (None if free function)
         loader_params_obj = loader_fn.__self__
+        params_location = "Bound method: loader_fn.__self__"
+    elif loader_params_obj is not None:
+        params_location = "Provided loader_params_obj"
+    elif loader_kwargs is not None:
+        params_location = "Provided loader_kwargs"
+    else:
+        message = "No valid source for params"
+        raise ValueError(message)
+    logger.debug(f"Params location: {params_location}")
+
     # Only one source of truth here
     if (loader_params_obj is None) == (loader_kwargs is None):
         message = "Excatly one of two loader_params_obj and loader_kwargs must be non None"
@@ -1602,19 +1637,12 @@ def cache_guard(
     if (dtype := loader_params_obj.dtype if loader_params_obj else loader_kwargs.get("dtype", None)) is None:
         message = "No source for dtype"
         raise ValueError(message)
-    # WARNING: if variant is "", then getattr(obj, variant, None) or None will return None!
-    if (variant := loader_params_obj.variant if loader_params_obj else loader_kwargs.get("variant")) is None:
-        message = "No source for variant"
-        raise ValueError(message)
 
     # get variant and variant-specific export name
-    export_name, variant = _cache_variant_override(
-        export_name=export_name,
+    export_name, export_variant, export_dir = _cache_location_info(
+        base_export_name=base_export_name,
         dtype=dtype,
-        variant=variant,
     )
-    # path for export
-    export_dir = _cache_export_path(export_name=export_name, variant=variant)
     # compute signature and associated metadata used to craete it
     signature_expected, signature_metadata = _cache_signature(
         export_name=export_name,
@@ -1623,7 +1651,7 @@ def cache_guard(
         model_id=model_id,
         device=device,
         dtype=dtype,
-        variant=variant,
+        export_variant=export_variant,
     )
     # check for existing export
     match = _cache_match(
@@ -1639,14 +1667,15 @@ def cache_guard(
         only_load_export=only_load_export,
         force_export_refresh=force_export_refresh,
         local_files_only_on_refresh=local_files_only_on_refresh,
+        use_safetensors=use_safetensors,
+        export_variant=export_variant,
     )
-
+    # override values in loader_params_obj/loader_kwargs
     loader_kwargs = _cache_apply_loader_overrides(
         loader_params_obj=loader_params_obj,
         loader_kwargs=loader_kwargs,
         loader_overrides=loader_overrides,
     )
-
     # Load the model with same loader either way
     model = loader_fn(**loader_kwargs)
     # Export the model, if applicable
@@ -1854,9 +1883,10 @@ def load_guard(
     local_files_only: bool = False,
     train_mode: bool = False,
     loader_kwargs: dict[str, Any] | None = None,
-    export_name: str | None = None,
+    base_export_name: str | None = None,
     only_load_export: bool = False,
     force_export_refresh: bool = False,
+    use_safetensors: bool = True,
 ) -> object:
     """Aggregate context manager for model load: local_guard, eval_guard, cache_guard."""
     with (
@@ -1867,10 +1897,11 @@ def load_guard(
         return cache_guard(
             loader_fn=guarded_loader_fn,
             loader_kwargs=loader_kwargs,
-            export_name=export_name,
+            base_export_name=base_export_name,
             only_load_export=only_load_export,
             force_export_refresh=force_export_refresh,
             local_files_only_on_refresh=_local_files_only,  # respect local_guard
+            use_safetensors=use_safetensors,
         )
 
 

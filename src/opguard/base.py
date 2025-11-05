@@ -382,7 +382,7 @@ class OpGuardBase(ABC):
                 train_mode=False,
                 loader_fn=self._load_detector,
                 loader_kwargs=None,
-                export_name=f"{self.NAME}-detector",
+                base_export_name=f"{self.NAME}-detector",
                 only_load_export=self.only_load_export,
                 force_export_refresh=self.force_export_refresh,
                 use_safetensors=self.USE_SAFETENSORS,
