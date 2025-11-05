@@ -32,7 +32,7 @@ from opguard.controlnets import (
 from opguard.inversion import InversionSdxl, InversionSdxlReconstruct
 from opguard.nlp import Blip1, Blip2
 from opguard.sd import SdTinyNanoTextToImage, SdxlTextToImage
-from opguard.vae import SdxlVaeFp16Fix, TinyVaeForSd
+from opguard.vae import VaeSdxlFp16Fix, VaeTinyForSd
 
 
 def load_test_image(
@@ -174,7 +174,7 @@ def _sdxl_vae_roundtrip(*, device: str | torch.device = "cuda", dtype: torch.dty
     # ruff: noqa: ANN003  (too restrictive on tests)
     logger.info(f"Running smoke test with {device=}, {dtype=}, {kwargs=}")
 
-    with SdxlVaeFp16Fix(device_override=device, dtype_override=dtype, **kwargs) as vae:
+    with VaeSdxlFp16Fix(device_override=device, dtype_override=dtype, **kwargs) as vae:
         input_image = load_test_image(final_size=(512, 512), allow_direct_download=False)
         output_image = vae(input_raw=input_image, mode="encode-decode")
     assert input_image.size == output_image.size
@@ -185,7 +185,7 @@ def _tiny_vae_roundtrip(*, device: str | torch.device, dtype: torch.dtype, **kwa
     # ruff: noqa: ANN003  (too restrictive on tests)
     logger.info(f"Running smoke test with {device=}, {dtype=}, {kwargs=}")
 
-    with TinyVaeForSd(device_override=device, dtype_override=dtype, **kwargs) as vae:
+    with VaeTinyForSd(device_override=device, dtype_override=dtype, **kwargs) as vae:
         input_image = load_test_image(final_size=(512, 512), allow_direct_download=False)
         output_image = vae(input_raw=input_image, mode="encode-decode")
     assert input_image.size == output_image.size

@@ -14,7 +14,7 @@ from PIL.Image import Image as PILImage
 from transformers import CLIPTextModel, CLIPTokenizer
 
 from .base import OpGuardBase
-from .vae import SdxlVaeFp16Fix, TinyVaeForSd
+from .vae import VaeSdxlFp16Fix, VaeTinyForSd
 
 # We do not care about LSP substitutability, OpGuard is not used directly
 # mypy: disable-error-code=override
@@ -113,8 +113,8 @@ class SdTinyNanoTextToImage(StableDiffusionBase):
         # Note: it may have different variant
         #       it also has its own model_id that it tracks
         # Note: have vae match the device/dtype/device_map of the pipeline since
-        #       by design TinyVaeForSd defaults to cpu
-        with TinyVaeForSd(
+        #       by design VaeTinyForSd defaults to cpu
+        with VaeTinyForSd(
             device_override=self.device,
             dtype_override=self.dtype,
             device_map_override=self.device_map,
@@ -139,7 +139,7 @@ class SdxlTextToImage(StableDiffusionBase):
     def _load_detector(self) -> StableDiffusionXLPipeline:
         # Load prior to pipe instead of in wrapper mode (debug messages more clear)
         # Note: OpGuard will still free references on exit
-        vae = SdxlVaeFp16Fix(
+        vae = VaeSdxlFp16Fix(
             device_override=self.device,
             dtype_override=self.dtype,
             device_map_override=self.device_map,

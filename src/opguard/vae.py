@@ -110,30 +110,30 @@ class AutoencoderKLBase(AutoencoderBase):
         ).to(self.device)
 
 
-class TinyVaeForSd(AutoencoderTinyBase):
+class VaeTinyForSd(AutoencoderTinyBase):
     """Tiny VAE for SD."""
 
-    NAME = "tiny-vae-sd"
+    NAME = "vae-tiny-sd"
     MODEL_ID = "madebyollin/taesd"
     REVISION = "main"
     DEFAULT_DEVICE = "cpu"
     DEFAULT_DTYPE = torch.float32
 
 
-class TinyVaeForSdxl(AutoencoderTinyBase):
+class VaeTinyForSdxl(AutoencoderTinyBase):
     """Tiny VAE for SDXL."""
 
-    NAME = "tiny-vae-sdxl"
+    NAME = "vae-tiny-sdxl"
     MODEL_ID = "madebyollin/taesdxl"
     REVISION = "main"
     DEFAULT_DEVICE = "cpu"
     DEFAULT_DTYPE = torch.float32
 
 
-class SdxlVaeFp16Fix(AutoencoderKLBase):
+class VaeSdxlFp16Fix(AutoencoderKLBase):
     """SDXL fp-16 fixed VAE for SDXL."""
 
-    NAME = "sdxl-vae-fp16-fix"
+    NAME = "vae-sdxl-fp16-fix"
     MODEL_ID = "madebyollin/sdxl-vae-fp16-fix"
     REVISION = "main"
     DEFAULT_DEVICE = "cuda"

@@ -21,7 +21,7 @@ from torch import Tensor
 
 from .base import OpGuardBase
 from .nlp import Blip1
-from .vae import SdxlVaeFp16Fix
+from .vae import VaeSdxlFp16Fix
 
 
 class InversionSdxl(OpGuardBase):
@@ -131,7 +131,7 @@ class InversionSdxlReconstruct(OpGuardBase):
     REVISION = "main"
 
     def _load_detector(self) -> StableDiffusionXLPipeline:
-        vae = SdxlVaeFp16Fix()
+        vae = VaeSdxlFp16Fix()
         ddim_scheduler = DDIMScheduler.from_pretrained(
             self.model_id,
             subfolder="scheduler",
