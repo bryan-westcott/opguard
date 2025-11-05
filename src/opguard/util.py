@@ -75,7 +75,7 @@ import shutil
 import textwrap
 import traceback
 import types
-from collections.abc import Callable, Generator, Iterator, Mapping
+from collections.abc import Callable, Generator, Iterable, Iterator, Mapping
 from contextlib import contextmanager, nullcontext, suppress
 from datetime import datetime
 from functools import wraps
@@ -83,7 +83,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, overload, runtime_checkable
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
     from contextlib import AbstractContextManager
 
 import torch
@@ -860,7 +859,7 @@ def _cache_match(
         logger.debug(
             f"Export {match=} in cache_guard, signatures: "
             f"expected={_hash_shortener(signature_expected)}, "
-            f"found={_hash_shortener(signature_found)}"
+            f"found={_hash_shortener(signature_found)}",
         )
     return match
 
@@ -953,7 +952,9 @@ def _cache_export_model(
     force_export_refresh: bool,
 ) -> None:
     """Export the model to local export, if applicable."""
-    logger.debug(f"Exporting model with: {model=}, {export_dir=}, {match=}, {force_export_refresh=}")
+    logger.debug(
+        f"Exporting model with: model={type(model).__name__}, {export_dir=}, {match=}, {force_export_refresh=}",
+    )
     if not export_dir:
         logger.warning("Bypassing load_guard export due to no export_dir")
         if force_export_refresh:
@@ -1873,7 +1874,8 @@ def call_guard(
     logger.debug(
         f"Guarding call with {need_grads=}, {sanitize_all_exceptions=}, "
         f"{detach_outputs=}, {caller_fn=}, {effective_dtype=}, "
-        f"{device_list=}, {train_mode=}, {models=}",
+        f"{device_list=}, {train_mode=}, "
+        f"models={[type(model).__name__ for model in (models if isinstance(models, Iterable) else ())]}",
     )
     with (
         eval_guard(
