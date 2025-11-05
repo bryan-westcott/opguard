@@ -143,13 +143,7 @@ class SdxlTextToImage(StableDiffusionBase):
     DEFAULT_DEVICE_MAP = "cuda"
 
     def _load_detector(self) -> StableDiffusionXLPipeline:
-        # Load prior to pipe instead of in wrapper mode (debug messages more clear)
         # Note: OpGuard will still free references on exit
-        vae = VaeSdxlFp16Fix(
-            device_override=self.device,
-            dtype_override=self.dtype,
-            device_map_override=self.device_map,
-        )
         pipe = StableDiffusionXLPipeline.from_pretrained(
             self.model_id,
             revision=self.REVISION,
@@ -157,8 +151,13 @@ class SdxlTextToImage(StableDiffusionBase):
             torch_dtype=self.dtype,
             device_map=self.device_map,
             use_safetensors=True,
-            vae=vae.detector,
         )
+        with VaeSdxlFp16Fix(
+            device_override=self.device,
+            dtype_override=self.dtype,
+            device_map_override=self.device_map,
+        ) as vae:
+            pipe.vae = vae.detector
         pipe.enable_xformers_memory_efficient_attention()
         pipe.enable_attention_slicing()
         if self.device_map is None:
