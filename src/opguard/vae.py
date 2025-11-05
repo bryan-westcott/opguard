@@ -91,6 +91,7 @@ class AutoencoderTinyBase(AutoencoderBase):
             revision=self.REVISION,
             torch_dtype=self.dtype,
             local_files_only=self.local_files_only,
+            use_safetensors=self.use_safetensors,
         )
         return vae.to(self.device)  # will give issues without to-device for gpu even with device map
 
@@ -109,7 +110,7 @@ class AutoencoderKLBase(AutoencoderBase):
             torch_dtype=self.dtype,
             device_map=self.device_map,
             local_files_only=self.local_files_only,
-            use_safetensors=True,
+            use_safetensors=self.use_safetensors,
         )
         if self.device_map is None:
             vae = vae.to(self.device)
