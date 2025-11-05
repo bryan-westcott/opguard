@@ -825,6 +825,11 @@ def _cache_signature(
     return signature, signature_metadata
 
 
+def _hash_shortener(hash_or_none: str | None) -> str:
+    """Return first 7 characters of a hash with ellipses or else the string None."""
+    return str(hash_or_none)[0:7] + "..." if hash_or_none else "None"
+
+
 def _cache_match(
     *,
     export_dir: Path | None,
@@ -854,7 +859,8 @@ def _cache_match(
         match = signature_expected == signature_found
         logger.debug(
             f"Export {match=} in cache_guard, signatures: "
-            f"expected={signature_expected[0:7]}..., found={str(signature_found)[0:7]}...",
+            f"expected={_hash_shortener(signature_expected)}, "
+            f"found={_hash_shortener(signature_found)}"
         )
     return match
 
@@ -947,6 +953,7 @@ def _cache_export_model(
     force_export_refresh: bool,
 ) -> None:
     """Export the model to local export, if applicable."""
+    logger.debug(f"Exporting model with: {model=}, {export_dir=}, {match=}, {force_export_refresh=}")
     if not export_dir:
         logger.warning("Bypassing load_guard export due to no export_dir")
         if force_export_refresh:
