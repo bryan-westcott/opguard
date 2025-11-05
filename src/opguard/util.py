@@ -1036,7 +1036,7 @@ def _cache_export_model(
         if not hasattr(model, "save_pretrained"):
             message = "Model provided has no save_pretrained method"
             raise ValueError(message)
-        model.save_pretrained(export_dir, save_kwargs=save_kwargs)
+        model.save_pretrained(export_dir, **save_kwargs)
         logger.debug(f"Model {type(model).__name__} saved to {export_dir=} with {save_kwargs=}")
         (export_dir / "metadata.json").write_text(
             json.dumps(metadata, indent=2, sort_keys=False),
