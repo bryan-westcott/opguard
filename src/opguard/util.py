@@ -759,7 +759,11 @@ def _hash_shortener(hash_or_none: str | None) -> str:
 
 def _metadata_hash_shortener(metadata: dict[str, Any]) -> dict[str, Any]:
     """Shorten hashes of any appropriate metadata entries."""
-    return metadata | {k: _hash_shortener(v) for k, v in metadata.items() if (("fingerprint" in k) or ("hash" in k))}
+    return metadata | {
+        k: _hash_shortener(v)
+        for k, v in metadata.items()
+        if (("fingerprint" in k) or ("hash" in k) or ("signature" in k))
+    }
 
 
 def _cache_signature(
@@ -1016,10 +1020,14 @@ def _cache_export_model(
             "created_at_pretty": created_at_pretty,
             "created_at_unix": created_at_unix,
         }
+        logger.debug(f"Model {type(model).__name__} metadata={_metadata_hash_shortener(metadata)}")
         # Add variant if appropriate
         save_kwargs: dict[str, Any] = {}
         if (base_module == "diffusers") and ("variant" in metadata):
             save_kwargs = {"variant": metadata["variant"]}
+            logger.debug(f"Adding {save_kwargs['variant']=} to save_pretrained")
+        else:
+            logger.debug("Skipping variant in save_kwargs argument to save_pretrained")
         # Now ensure directory exists and is empty
         if export_dir.exists():
             shutil.rmtree(export_dir)
@@ -1029,6 +1037,7 @@ def _cache_export_model(
             message = "Model provided has no save_pretrained method"
             raise ValueError(message)
         model.save_pretrained(export_dir, save_kwargs=save_kwargs)
+        logger.debug(f"Model {type(model).__name__} saved to {export_dir=} with {save_kwargs=}")
         (export_dir / "metadata.json").write_text(
             json.dumps(metadata, indent=2, sort_keys=False),
         )
