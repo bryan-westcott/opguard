@@ -460,7 +460,7 @@ class OpGuardBase(ABC):
         try:
             # Lazy loader
             if self._is_freed:
-                logger.debug("Lazy loading models on call")
+                logger.debug(f"Lazy loading {self.NAME} on call")
                 self._load()
             yield None
         finally:
@@ -468,3 +468,4 @@ class OpGuardBase(ABC):
             # Ensure free as expected even on error
             if (not self.keep_warm) and (not self._in_context):
                 self._free(reason=f"per-call finally, {self.keep_warm=}, {self._in_context=}")
+                logger.debug(f"Lazy freeing {self.NAME} due to {self.keep_warm=}, {self._in_context=}")
