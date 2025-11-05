@@ -1059,6 +1059,7 @@ def device_guard(
         device_map:
             Placement hint for multi-GPU workloads.
             - "auto": include **all visible CPU/CUDA devices** in index order.
+            - "cuda": used by diffusers, similar to "auto"
             - "balanced": balanced mode (assume all visible)
             - None  : no multi-device expansion is performed.
             Other mapping forms are not interpreted here.
@@ -1115,8 +1116,8 @@ def device_guard(
         return device_list_override, device_normalized
 
     # Only "auto", or "balanced" or None supported for now
-    if (device_map is not None) and device_map not in ("auto", "balanced"):
-        message = "Only device_map of 'auto', 'balanced' or None is supported."
+    if (device_map is not None) and device_map not in ("auto", "balanced", "cuda"):
+        message = "Only device_map of 'auto', 'balanced', 'cuda' or None is supported."
         raise ValueError(message)
 
     # For cpu-only work loads, the device list is always a single cpu device
@@ -1125,9 +1126,9 @@ def device_guard(
         logger.debug(f"Only one or zero cuda devices available, using {device_normalized=} for device_list")
         return [device_normalized], device_normalized
 
-    # If device_map == "auto", then list all available cuda devices
+    # If device_map is "auto", "balanced" or "cuda", then list all available cuda devices
     # Note: a check for no-cuda was already
-    if (device_map in ("auto", "balanced")) and torch.cuda.is_available():
+    if (device_map in ("auto", "balanced", "cuda")) and torch.cuda.is_available():
         device_list = [torch.device(f"cuda:{i}") for i in range(torch.cuda.device_count())]
         logger.debug(f"Setting {device_list=} from {device_map=} in device_guard")
         return device_list, device_normalized
