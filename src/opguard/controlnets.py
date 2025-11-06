@@ -4,7 +4,7 @@
 # mypy: disable-error-code=override
 
 from collections.abc import Callable
-from typing import ClassVar, cast
+from typing import Any, ClassVar, cast
 
 import torch
 from controlnet_aux import HEDdetector
@@ -31,6 +31,7 @@ class ControlnetBase(OpGuardBase):
         message = "Controlnets are not meant to be called, but rather attached to a pipe"
         raise RuntimeError(message)
 
+
 class TileDetector(OpGuardBase):
     """Tile controlnet."""
 
@@ -50,14 +51,6 @@ class TileControlnet(ControlnetBase):
     MODEL_ID = "xinsir/controlnet-tile-sdxl-1.0"
     REVISION = "main"
 
-    def _load_detector(self) -> object:
-        """Return a loaded Tile controlnet to attach to external diffusion pipeline."""
-        return self.DETECTOR_TYPE.from_pretrained(
-            self.model_id,
-            revision=self.REVISION,
-            torch_dtype=self.dtype,
-        ).to(self.device)
-
 
 class HedDetector(OpGuardBase):
     """HED softline detector."""
@@ -68,6 +61,7 @@ class HedDetector(OpGuardBase):
     # Will fail on bfloat16 due to use of numpy detach
     DTYPE_PREFERENCE = torch.float16
     DETECTOR_TYPE = HEDdetector
+    FROM_PRETRAINED_SKIP_KWARGS = ("variant", "use_safetensors")
 
     def _load_detector(self) -> object:
         return self.DETECTOR_TYPE.from_pretrained(
@@ -82,15 +76,6 @@ class MarigoldDepthDetector(OpGuardBase):
     MODEL_ID = "prs-eth/marigold-depth-v1-1"
     REVISION = "main"
     DETECTOR_TYPE = MarigoldDepthPipeline
-
-    # Warning: older versions of diffusers may not support variant
-    def _load_detector(self) -> object:
-        return self.DETECTOR_TYPE.from_pretrained(
-            self.model_id,
-            revision=self.REVISION,
-            variant=self.variant,
-            torch_dtype=self.dtype,
-        ).to(self.device)
 
     def _postprocess(self, output_raw: MarigoldDepthOutput) -> PILImage:
         # Note: must be inverted to match depth convention of zoe, dpt, etc.
@@ -109,14 +94,6 @@ class DepthControlnet(ControlnetBase):
     MODEL_ID = "xinsir/controlnet-depth-sdxl-1.0"
     REVISION = "main"
 
-    def _load_detector(self) -> object:
-        """Return a loaded Marigold Depth controlnet for external diffusion pipeline."""
-        return self.DETECTOR_TYPE.from_pretrained(
-            self.model_id,
-            revision=self.REVISION,
-            torch_dtype=self.dtype,
-        ).to(self.device)
-
 
 class UnionControlnet(ControlnetBase):
     """Union controlnet for various control methods.
@@ -133,14 +110,6 @@ class UnionControlnet(ControlnetBase):
     REVISION = "main"
     DETECTOR_TYPE = ControlNetModel_Union
 
-    def _load_detector(self) -> object:
-        """Return a loaded Marigold Depth controlnet for external diffusion pipeline."""
-        return self.DETECTOR_TYPE.from_pretrained(
-            self.model_id,
-            revision=self.REVISION,
-            torch_dtype=self.dtype,
-        ).to(self.device)
-
 
 class UnionPromaxControlnet(ControlnetBase):
     """Union Promax controlnet for various control methods.
@@ -156,15 +125,7 @@ class UnionPromaxControlnet(ControlnetBase):
     MODEL_ID = "xinsir/controlnet-union-sdxl-1.0"
     REVISION = "main"
     DETECTOR_TYPE = ControlNetModel_Union
-
-    def _load_detector(self) -> object:
-        """Return a loaded Marigold Depth controlnet for external diffusion pipeline."""
-        return self.DETECTOR_TYPE.from_pretrained(
-            self.model_id,
-            revision=self.REVISION,
-            torch_dtype=self.dtype,
-            config_name="config_promax.json",
-        ).to(self.device)
+    FROM_PRETRAINED_ADDITIONAL_KWARGS: ClassVar[dict[str, Any]] = {"config_name": "config_promax.json"}
 
 
 class MarigoldNormalsDetector(OpGuardBase):
@@ -174,15 +135,6 @@ class MarigoldNormalsDetector(OpGuardBase):
     MODEL_ID = "prs-eth/marigold-normals-v1-1"
     REVISION = "main"
     DETECTOR_TYPE = MarigoldNormalsPipeline
-
-    # Warning: older versions of diffusers may not support variant
-    def _load_detector(self) -> object:
-        return self.DETECTOR_TYPE.from_pretrained(
-            self.model_id,
-            revision=self.REVISION,
-            variant=self.variant,
-            torch_dtype=self.dtype,
-        ).to(self.device)
 
     def _postprocess(self, output_raw: MarigoldNormalsOutput) -> PILImage:
         return self._detector.image_processor.visualize_normals(output_raw.prediction)[0]
@@ -196,6 +148,7 @@ class DwposeDetector(OpGuardBase):
     REVISION = "main"
     DETECTOR_TYPE = DWposeDetector
 
+    # Note: only device supported as a kwarg
     def _load_detector(self) -> object:
         return self.DETECTOR_TYPE(device=self.device)
 

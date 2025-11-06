@@ -3,6 +3,8 @@
 # We do not care about LSP substitutability, OpGuardBase is not used directly
 # mypy: disable-error-code=override
 
+from typing import Any, ClassVar
+
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from transformers import (
@@ -16,29 +18,8 @@ from transformers.image_processing_base import BatchFeature
 from .base import OpGuardBase
 
 
-class Blip1(OpGuardBase):
-    """BLIP1 captioner with optional conditional text prompt."""
-
-    NAME = "blip1"
-    MODEL_ID = "Salesforce/blip-image-captioning-base"
-    REVISION = "main"
-    DETECTOR_TYPE = BlipForConditionalGeneration
-
-    def _load_processor(self) -> BlipProcessor:
-        return BlipProcessor.from_pretrained(
-            self.model_id,
-            revision=self.REVISION,
-            use_fast=True,
-            device_map=self.device_map,
-        )
-
-    def _load_detector(self) -> object:
-        return self.DETECTOR_TYPE.from_pretrained(
-            self.model_id,
-            revision=self.REVISION,
-            dtype=self.dtype,
-            device_map=self.device_map,
-        )
+class Blip(OpGuardBase):
+    """BLIP1/2 captioner with optional conditional text prompt."""
 
     def _preprocess(self, *, input_raw: PILImage, text: str | None = None) -> BatchFeature:
         return self._processor(input_raw, text=text, return_tensors="pt").to(
@@ -58,26 +39,36 @@ class Blip1(OpGuardBase):
         return self._postprocess(output_raw=output_raw)  # output_proc
 
 
-class Blip2(Blip1):
-    """Blip2 captioner with optional conditional text prompt."""
+class Blip1(Blip):
+    """BLIP1 captioner with optional conditional text prompt."""
 
-    NAME = "blip2-conditional"
-    MODEL_ID = "Salesforce/blip2-opt-2.7b"
+    NAME = "blip1"
+    MODEL_ID = "Salesforce/blip-image-captioning-base"
     REVISION = "main"
-    DETECTOR_TYPE = Blip2ForConditionalGeneration
+    DETECTOR_TYPE = BlipForConditionalGeneration
 
-    def _load_processor(self) -> Blip2Processor:
-        return Blip2Processor.from_pretrained(
+    def _load_processor(self) -> BlipProcessor:
+        return BlipProcessor.from_pretrained(
             self.model_id,
             revision=self.REVISION,
             use_fast=True,
             device_map=self.device_map,
         )
 
-    def _load_detector(self) -> object:
-        return self.DETECTOR_TYPE.from_pretrained(
+
+class Blip2(Blip):
+    """Blip2 captioner with optional conditional text prompt."""
+
+    NAME = "blip2-conditional"
+    MODEL_ID = "Salesforce/blip2-opt-2.7b"
+    REVISION = "main"
+    DETECTOR_TYPE = Blip2ForConditionalGeneration
+    FROM_PRETRAINED_ADDITIONAL_KWARGS: ClassVar[dict[str, Any]] = {"load_in_8bit": True}
+
+    def _load_processor(self) -> Blip2Processor:
+        return Blip2Processor.from_pretrained(
             self.model_id,
             revision=self.REVISION,
-            load_in_8bit=True,
+            use_fast=True,
             device_map=self.device_map,
         )

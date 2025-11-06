@@ -14,13 +14,13 @@ from .base import OpGuardBase
 class AutoencoderBase(OpGuardBase):
     """Tiny VAE and Autoencoder KL base class for both SD and SDXL."""
 
-    def _load_processor(self, **kwargs: object) -> VaeImageProcessor:
+    def _load_processor(self) -> VaeImageProcessor:
         return VaeImageProcessor(vae_scale_factor=8)
 
-    def _preprocess(self, *, input_raw: PILImage, **kwargs: object) -> torch.FloatTensor:
+    def _preprocess(self, *, input_raw: PILImage) -> torch.FloatTensor:
         return self._processor.preprocess(input_raw).to(self.device, self.dtype)  # (B,C,H,W)
 
-    def _postprocess(self, *, output_raw: torch.FloatTensor, **kwargs: object) -> PILImage:
+    def _postprocess(self, *, output_raw: torch.FloatTensor) -> PILImage:
         return self._processor.postprocess(output_raw, output_type="pil")[0]
 
     def _encode(self, *, image: torch.FloatTensor) -> torch.FloatTensor:
@@ -86,17 +86,6 @@ class AutoencoderTinyBase(AutoencoderBase):
 
     DETECTOR_TYPE = AutoencoderTiny
 
-    def _load_detector(self, **kwargs: object) -> object:
-        # ruff: noqa: ARG002
-        vae = self.DETECTOR_TYPE.from_pretrained(
-            self.model_id,
-            revision=self.REVISION,
-            torch_dtype=self.dtype,
-            local_files_only=self.local_files_only,
-            use_safetensors=self.use_safetensors,
-        )
-        return vae.to(self.device)  # will give issues without to-device for gpu even with device map
-
 
 class AutoencoderKLBase(AutoencoderBase):
     """AutoencoderKL VAE base class for both SD and SDXL."""
@@ -105,20 +94,6 @@ class AutoencoderKLBase(AutoencoderBase):
 
     def _encode(self, *, image: torch.FloatTensor) -> torch.FloatTensor:
         return self._detector.encode(image.to(self.device, self.dtype)).latent_dist.sample()
-
-    def _load_detector(self, **kwargs: object) -> object:
-        # ruff: noqa: ARG002
-        vae = self.DETECTOR_TYPE.from_pretrained(
-            self.model_id,
-            revision=self.REVISION,
-            torch_dtype=self.dtype,
-            device_map=self.device_map,
-            local_files_only=self.local_files_only,
-            use_safetensors=self.use_safetensors,
-        )
-        if self.device_map is None:
-            vae = vae.to(self.device)
-        return vae
 
 
 class VaeTinyForSd(AutoencoderTinyBase):

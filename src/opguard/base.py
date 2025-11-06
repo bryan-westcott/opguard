@@ -59,12 +59,12 @@ Minimal example: this will apply all the guards (with default options)
 #   We don't use polymorphic calls through the base, so substitutability doesn't apply.
 #   Note: this must be in all derived classe to avoid contravariance errors
 
+import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from inspect import isabstract
 from typing import Any, ClassVar, Literal, Protocol, runtime_checkable
-import inspect
 
 import torch
 from loguru import logger
@@ -144,6 +144,15 @@ class OpGuardBase(ABC):
                 Note: for cached/exported models, it will always be safetensors
             IS_CALLABLE: whether object is callable (default True)
                 Note: only False for rare cases like diffusion pipe components
+            SKIP_TO_DEVICE: skip the .to(device) on detector from_pretrained()
+            SKIP_TO_DTYPE: skip the .to(dtype=self.dtype) on detector from_pretrained()
+            FROM_PRETRAINED_SKIP_KWARGS: kwargs to skip (typically those not supported)
+                to detector from_pretrained()
+            FROM_PRETRAINED_ADDITIONAL_KWARGS: Keyword arguments to add to from_pretrained(), as a dictionary
+                Note: this is good for static args to add to from_pretrained,
+                while dynamic additional args can be done with
+                passing kwargs to super()._load_detector(kwargs) in
+                overridden load_detector()
     """
 
     # --- Specialize Here -----
@@ -184,14 +193,25 @@ class OpGuardBase(ABC):
     NEED_GRADS: ClassVar[bool] = False
     # Whether class is callable (only False in special cases, e.g., pipe components)
     IS_CALLABLE: ClassVar[bool] = True
-
+    # Whether to skip .to(device) on from_pretrained
+    SKIP_TO_DEVICE: ClassVar[bool] = False
+    # Whether to skip .to(dtype) on from_pretrained
+    SKIP_TO_DTYPE: ClassVar[bool] = False
+    # Keyword arguments to skip in from_pretrained, as a list of names
+    FROM_PRETRAINED_SKIP_KWARGS: ClassVar[tuple] = ()
+    # Keyword arguments to add to from_pretrained(), as a dictionary
+    # Note: this is good for static args to add to from_pretrained,
+    #       while dynamic additional args can be done with
+    #       passing kwargs to super()._load_detector(kwargs) in
+    #       overridden load_detector()
+    FROM_PRETRAINED_ADDITIONAL_KWARGS: ClassVar[dict[str, Any]] = {}
 
     def _caller(self, *, input_raw: Any, **kwargs) -> Any:
         """Actual call line inside __call__ safe wrapper."""
         # To avoid complexity, a single set of kwargs are provided,
         # and routed appropriately based on the signature of each caller step
-        # Note: this prevents the need for adding a **kwargs to each step to 
-        #       absorb unused kwargs that would otherwise trigger an 
+        # Note: this prevents the need for adding a **kwargs to each step to
+        #       absorb unused kwargs that would otherwise trigger an
         #       "unexpected keyword argument" error
         preprocess_kwargs = self.filter_kwargs(self._preprocess, kwargs)
         predict_kwargs = self.filter_kwargs(self._predict, kwargs)
@@ -202,20 +222,60 @@ class OpGuardBase(ABC):
         return self._postprocess(output_raw=output_raw, **postprocess_kwargs)  # output_proc
 
     def _load_detector(self, **kwargs) -> object:
-        """Return an initialized detector model, must be specialized."""
-        additional_keywords = ("variant", "use_safetensors", "local_files_only", "device_map")
-        additional_kwargs: dict[str, Any] = {
-            keyword: getattr(self, keyword) for keyword in additional_keywords if getattr(self, keyword)
-        }
-        # override these if desired
-        additional_kwargs |= kwargs or {}
+        """Return an initialized detector model.
 
-        return self.DETECTOR_TYPE.from_pretrained(
-            self.model_id,
-            revision=self.REVISION,
-            torch_dtype=self.dtype,
-            **additional_kwargs,
-        ).to(self.device, self.dtype)
+        Note: it will by default provide args (unless overridden or skipped):
+            variant, use_safetensors, local_files_only, device_map
+
+        How to customize:
+            1. replace this method completely in derived class
+                Note: this is dangerous as many safety kwargs must be reproduced
+            2. override with kwargs to this method and call in derived class:
+                super()._load_detector(**override_kwargs)
+            3. add static kwargs with self.FROM_PRETRAINED_ADDITIONAL_KWARGS
+            4. skip unsupported args with self.FROM_PRETRIAINED_SKIP_KWARGS
+        """
+        # basic args
+        from_pretrained_kwargs = {
+            "revision": self.REVISION,
+            "torch_dtype": self.dtype,
+        }
+        # Add these only if not None
+        if self.variant:
+            from_pretrained_kwargs["variant"] = self.variant
+        if self.USE_SAFETENSORS:
+            from_pretrained_kwargs["use_safetensors"] = self.USE_SAFETENSORS
+        if self.local_files_only:
+            from_pretrained_kwargs["local_files_only"] = self.local_files_only
+        if self.device_map:
+            from_pretrained_kwargs["device_map"] = self.device_map
+        # Filter out those skipped
+        if self.FROM_PRETRAINED_SKIP_KWARGS:
+            logger.debug(f"Removing kwargs: {self.FROM_PRETRAINED_SKIP_KWARGS}")
+            from_pretrained_kwargs = {
+                k: v for k, v in from_pretrained_kwargs.items() if k not in self.FROM_PRETRAINED_SKIP_KWARGS
+            }
+        # Add addditional
+        if self.FROM_PRETRAINED_ADDITIONAL_KWARGS:
+            logger.debug(f"Adding kwargs: {self.FROM_PRETRAINED_ADDITIONAL_KWARGS}")
+            from_pretrained_kwargs |= self.FROM_PRETRAINED_ADDITIONAL_KWARGS
+        # Add overrrides
+        if kwargs:
+            logger.debug(f"Overiding kwargs: {kwargs=}")
+            from_pretrained_kwargs |= kwargs
+
+        # to kwargs
+        to_kwargs: dict[str, Any] = {}
+        if not self.SKIP_TO_DEVICE:
+            to_kwargs["device"] = self.device
+        if not self.SKIP_TO_DTYPE:
+            to_kwargs["dtype"] = self.dtype
+
+        # Load model with basic arguments and additional kwargs
+        logger.debug(f"Loading {self.DETECTOR_TYPE} with model_id={self.model_id}, kwargs={from_pretrained_kwargs}")
+        model = self.DETECTOR_TYPE.from_pretrained(self.model_id, **from_pretrained_kwargs)
+        logger.debug(f"Applying model.to() with {to_kwargs=}, due to {self.SKIP_TO_DEVICE=}, {self.SKIP_TO_DTYPE=}")
+        return model.to(**to_kwargs) if to_kwargs else model
 
     def _load_processor(self, **kwargs) -> Any:
         """Load preprocessor (optional), often also used for post-processing."""

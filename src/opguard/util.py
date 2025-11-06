@@ -1063,7 +1063,7 @@ def device_guard(
     device_map: DeviceMapLike | None,
     device_list_override: list[torch.device] | None = None,
     device_normalized_override: torch.device | None = None,
-) -> tuple[list[torch.device], torch.device]:
+) -> tuple[list[torch.device], torch.device, DeviceMapLike | None]:
     """Resolve and normalize devices from `device` and/or `device_map`.
 
     Goals:
@@ -1105,12 +1105,12 @@ def device_guard(
             message = "if device_list_overide is provided, device_normalized_override must also be provided"
             raise ValueError(message)
         logger.debug(f"Using device_list={device_list_override=}, device_normalized={device_normalized_override=}")
-        return device_list_override, device_normalized_override
+        return device_list_override, device_normalized_override, device_map
     if device_normalized_override:
         logger.debug(
             f"Using device_list=[{device_normalized_override=}], device_normalized={device_normalized_override=}",
         )
-        return [device_normalized_override], device_normalized_override
+        return [device_normalized_override], device_normalized_override, device_map
 
     # check for cuda once
     cuda_available = torch.cuda.is_available()
@@ -1129,7 +1129,10 @@ def device_guard(
 
     # Fallback to cpu for device if cuda requested but not available
     if device_normalized.type == "cuda" and not cuda_available:
-        logger.warning("CUDA device requested and CUDA unavailable, falling back to cpu mode")
+        logger.warning(
+            "CUDA device requested and CUDA unavailable, falling back to cpu mode and device_map=None",
+        )
+        device_map = None
         device_normalized = normalize_device("cpu")
 
     # If no device_map, just use the device
@@ -1138,7 +1141,11 @@ def device_guard(
         device_list = [device_normalized]
     elif (not cuda_available) or (torch.cuda.device_count() == 0):
         # only one "cpu" used for non-cuda (regardless of core/cpu count)
-        logger.warning(f"Proviced {device_map=} and no cuda and/or cuda devices available, falling back to cpu")
+        logger.warning(
+            f"Provided {device_map=} and no cuda and/or cuda devices available, "
+            f"falling back to cpu and device_map=None",
+        )
+        device_map = None
         device_list = [normalize_device("cpu")]
     elif device_map in ("auto", "cuda", "balanced"):
         # device_map requested, cuda is available, and at least one cuda device exists
@@ -1162,7 +1169,7 @@ def device_guard(
         raise ValueError(message)
 
     logger.debug(f"Choices for device_guard: {device_list=}, {device_normalized=}")
-    return device_list, device_normalized
+    return device_list, device_normalized, device_map
 
 
 def dtype_guard(
@@ -1887,7 +1894,7 @@ def init_guard(
     """Aggregate context manager for init: device_guard, dtype_guard, variant_guard."""
     device_list: list[torch.device]
     device_normalized: torch.device
-    device_list, device_normalized = device_guard(
+    device_list, device_normalized, device_map = device_guard(
         device=device,
         device_map=device_map,
         device_list_override=device_list_override,
