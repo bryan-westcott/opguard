@@ -1197,28 +1197,49 @@ def dtype_guard(
         ValueError: dtype other than float16, bfloat16 or float32
             (Add fp8 or fp4 with customized model loader)
     """
-    if dtype_override:
+    if dtype_override is not None:
         # Manual override, e.g., from prior call to this manager
         logger.debug(f"Using {dtype_override=}")
         return dtype_override
 
-    # Check for invalid float16/bfloat16 requests in cpu mode
-    if dtype_desired in (torch.float16, torch.bfloat16):
-        if any(device.type == "cpu" for device in device_list):
-            logger.warning(f"CPU devices do not support {dtype_desired=}, falling back to float32")
-            return torch.float32
-        return torch.float16
+    # check for no devices
+    if not device_list:
+        message = "No devices in device_list"
+        raise ValueError(message)
 
-    # check for unsupported bfloat16 requests
-    if dtype_desired == torch.bfloat16:
-        if not all(device_supports_bfloat16(d) for d in device_list):
-            logger.warning("All devices do not support dtype_desired=='bfloat16', falling back to float16")
-            return torch.float16
-        return torch.bfloat16
+    # check for supported dtypes
+    supported_dtypes = (torch.float32, torch.float16, torch.bfloat16)
+    if dtype_desired not in supported_dtypes:
+        message = f"Unsupported {dtype_desired=}, supported dtypes: {supported_dtypes}"
+        raise TypeError(message)
 
-    if dtype_desired != torch.float32:
-        logger.warning(f"Unsupported dtype provided: {dtype_desired=}, falling back to float32")
-    return torch.float32
+    # Check for no cuda with GPU types
+    gpu_dtypes = (torch.float16, torch.bfloat16)
+    if (dtype_desired in gpu_dtypes) and not torch.cuda.is_available():
+        message = f"CUDA not available for GPU-only {dtype_desired}, falling back to torch.float32"
+        logger.warning(message)
+        dtype_desired = torch.float32
+
+    # check for not all cuda devices with GPU tpes
+    if (dtype_desired in gpu_dtypes) and not all(device.type == "cuda" for device in device_list):
+        message = f"All device types must be cuda GPU-only {dtype_desired}, falling back to torch.float32"
+        logger.warning(message)
+        dtype_desired = torch.float32
+
+    # Check for any CPU device with GPU types
+    if (dtype_desired in gpu_dtypes) and any(device.type == "cpu" for device in device_list):
+        message = "CPU devices cannot support half-precision, falling back to torch.float32"
+        logger.warning(message)
+        dtype_desired = torch.float32
+
+    # Check for bfloat16 with proper support
+    if (dtype_desired == torch.bfloat16) and not all(device_supports_bfloat16(d) for d in device_list):
+        message = f"All devices do not support {dtype_desired=}, falling back to torch.float16"
+        logger.warning(message)
+        dtype_desired = torch.float16
+
+    logger.debug(f"Choosing dtype {dtype_desired}")
+    return dtype_desired
 
 
 def variant_guard(
