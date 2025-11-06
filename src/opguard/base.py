@@ -124,7 +124,7 @@ class OpGuardBase(ABC):
             NEED_GRADS: whether gradients are needed (default is False)
                 - Note: usually False except for techniques like inversion
             DEFAULT_DEVICE (str | int | torch.device): default device to be used (default is "cuda")
-            DEFAULT_DEVICE_MAP: default device mapping (for models that use it, default is "auto")
+            DEFAULT_DEVICE_MAP: default device mapping (for models that use it, default is "cuda")
             DTYPE_PREFERENCE: preference for smallest precision
                 preference order: torch.bfloat16 -> torch.float16 -> torch.float32
                 Note: this is device (compute capability) dependent
@@ -159,7 +159,7 @@ class OpGuardBase(ABC):
     # Default torch device
     DEFAULT_DEVICE: ClassVar[DeviceLike] = "cuda"
     # default huggingface device_map
-    DEFAULT_DEVICE_MAP: ClassVar[DeviceMapLike] = "auto"
+    DEFAULT_DEVICE_MAP: ClassVar[DeviceMapLike | None] = "cuda"
     # Whether honored is compute capability and hardware dependent
     DTYPE_PREFERENCE: ClassVar[torch.dtype] = torch.bfloat16
     # Whether to use safetensors for loading (override to False if not available)
