@@ -33,8 +33,9 @@ class InversionSdxl(OpGuardBase):
     MODEL_ID = "stabilityai/stable-diffusion-xl-base-1.0"
     REVISION = "main"
     NEED_GRADS = True
+    DETECTOR_TYPE = SDXLDDIMPipeline
 
-    def _load_detector(self) -> SDXLDDIMPipeline:
+    def _load_detector(self) -> object:
         # For tracking what is loaded"
         self.extra_info["sdxl_model_name"] = self.MODEL_ID
         self.extra_info["model_type"] = Model_Type.SDXL
@@ -129,14 +130,15 @@ class InversionSdxlReconstruct(OpGuardBase):
     NAME = "inversion-reconstruct"
     MODEL_ID = "stabilityai/stable-diffusion-xl-base-1.0"
     REVISION = "main"
+    DETECTOR_TYPE = StableDiffusionXLPipeline
 
-    def _load_detector(self) -> StableDiffusionXLPipeline:
+    def _load_detector(self) -> object:
         vae = VaeSdxlFp16Fix()
         ddim_scheduler = DDIMScheduler.from_pretrained(
             self.model_id,
             subfolder="scheduler",
         )
-        pipe = StableDiffusionXLPipeline.from_pretrained(
+        pipe = self.DETECTOR_TYPE.from_pretrained(
             self.model_id,
             vae=vae,
             variant=self.variant,

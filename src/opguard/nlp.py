@@ -22,6 +22,7 @@ class Blip1(OpGuardBase):
     NAME = "blip1"
     MODEL_ID = "Salesforce/blip-image-captioning-base"
     REVISION = "main"
+    DETECTOR_TYPE = BlipForConditionalGeneration
 
     def _load_processor(self) -> BlipProcessor:
         return BlipProcessor.from_pretrained(
@@ -31,8 +32,8 @@ class Blip1(OpGuardBase):
             device_map=self.device_map,
         )
 
-    def _load_detector(self) -> BlipForConditionalGeneration:
-        return BlipForConditionalGeneration.from_pretrained(
+    def _load_detector(self) -> object:
+        return self.DETECTOR_TYPE.from_pretrained(
             self.model_id,
             revision=self.REVISION,
             dtype=self.dtype,
@@ -63,6 +64,7 @@ class Blip2(Blip1):
     NAME = "blip2-conditional"
     MODEL_ID = "Salesforce/blip2-opt-2.7b"
     REVISION = "main"
+    DETECTOR_TYPE = Blip2ForConditionalGeneration
 
     def _load_processor(self) -> Blip2Processor:
         return Blip2Processor.from_pretrained(
@@ -72,8 +74,8 @@ class Blip2(Blip1):
             device_map=self.device_map,
         )
 
-    def _load_detector(self) -> Blip2ForConditionalGeneration:
-        return Blip2ForConditionalGeneration.from_pretrained(
+    def _load_detector(self) -> object:
+        return self.DETECTOR_TYPE.from_pretrained(
             self.model_id,
             revision=self.REVISION,
             load_in_8bit=True,

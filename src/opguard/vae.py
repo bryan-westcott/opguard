@@ -84,9 +84,11 @@ class AutoencoderBase(OpGuardBase):
 class AutoencoderTinyBase(AutoencoderBase):
     """AutoencoderTiny VAE base class for both SD and SDXL."""
 
-    def _load_detector(self, **kwargs: object) -> AutoencoderTiny:
+    DETECTOR_TYPE = AutoencoderTiny
+
+    def _load_detector(self, **kwargs: object) -> object:
         # ruff: noqa: ARG002
-        vae = AutoencoderTiny.from_pretrained(
+        vae = self.DETECTOR_TYPE.from_pretrained(
             self.model_id,
             revision=self.REVISION,
             torch_dtype=self.dtype,
@@ -99,12 +101,14 @@ class AutoencoderTinyBase(AutoencoderBase):
 class AutoencoderKLBase(AutoencoderBase):
     """AutoencoderKL VAE base class for both SD and SDXL."""
 
+    DETECTOR_TYPE = AutoencoderKL
+
     def _encode(self, *, image: torch.FloatTensor) -> torch.FloatTensor:
         return self._detector.encode(image.to(self.device, self.dtype)).latent_dist.sample()
 
-    def _load_detector(self, **kwargs: object) -> AutoencoderKL:
+    def _load_detector(self, **kwargs: object) -> object:
         # ruff: noqa: ARG002
-        vae = AutoencoderKL.from_pretrained(
+        vae = self.DETECTOR_TYPE.from_pretrained(
             self.model_id,
             revision=self.REVISION,
             torch_dtype=self.dtype,

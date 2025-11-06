@@ -73,8 +73,9 @@ class SdTinyNanoTextToImage(StableDiffusionBase):
     NAME = "sd-nano"
     MODEL_ID = "bguisard/stable-diffusion-nano-2-1"
     REVISION = "main"
+    DETECTOR_TYPE = StableDiffusionPipeline
 
-    def _load_detector(self) -> StableDiffusionPipeline:
+    def _load_detector(self) -> object:
         # Swap in TinyVAE for SD1.x
         quant_config = DiffusersBitsAndBytesConfig(
             load_in_4bit=True,
@@ -104,7 +105,7 @@ class SdTinyNanoTextToImage(StableDiffusionBase):
             subfolder="scheduler",
         )
         # Load SD base pipeline
-        pipe = StableDiffusionPipeline.from_pretrained(
+        pipe = self.DETECTOR_TYPE.from_pretrained(
             self.model_id,
             revision=self.REVISION,
             unet=unet,
@@ -141,10 +142,11 @@ class SdxlTextToImage(StableDiffusionBase):
     DEFAULT_DEVICE = "cuda"
     DEFAULT_DTYPE = torch.bfloat16
     DEFAULT_DEVICE_MAP = "cuda"
+    DETECTOR_TYPE = StableDiffusionXLPipeline
 
-    def _load_detector(self) -> StableDiffusionXLPipeline:
+    def _load_detector(self) -> object:
         # Note: OpGuard will still free references on exit
-        pipe = StableDiffusionXLPipeline.from_pretrained(
+        pipe = self.DETECTOR_TYPE.from_pretrained(
             self.model_id,
             revision=self.REVISION,
             variant=self.variant,
