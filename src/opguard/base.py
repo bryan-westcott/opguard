@@ -320,7 +320,7 @@ class OpGuardBase(ABC):
             "MODEL_ID",
             "REVISION",
             "NEED_GRADS",
-            "CALLABLE",
+            "IS_CALLABLE",
             "DEFAULT_DEVICE",
             "DEFAULT_DEVICE_MAP",
             "DTYPE_PREFERENCE",
