@@ -127,3 +127,4 @@ class VaeSdxlFp16Fix(AutoencoderKLBase):
     DEFAULT_DEVICE = "cuda"
     DEFAULT_DTYPE = torch.bfloat16
     DEFAULT_DEVICE_MAP = "cuda"
+    FROM_PRETRAINED_SKIP_KWARGS = ("variant",)
