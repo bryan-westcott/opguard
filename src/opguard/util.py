@@ -1097,63 +1097,72 @@ def device_guard(
             - if neither `device` nor `device_map` is provided
         - Allows overrides if previously computed, while retaining lightweight sanity checks
     """
-    # Check for neither device_normalized nor device map
-    if (device is None) and (device_normalized_override is None) and (device_map is None):
-        message = "Must specify at least one of `device`, `device_overide` and/or `device_map`."
+    # ruff: noqa: PLR0912  # this is complex logic and most branches are sanity checks
 
-    device_normalized: torch.device
+    # device list takes precedence
+    if device_list_override:
+        if not device_normalized_override:
+            message = "if device_list_overide is provided, device_normalized_override must also be provided"
+            raise ValueError(message)
+        logger.debug(f"Using device_list={device_list_override=}, device_normalized={device_normalized_override=}")
+        return device_list_override, device_normalized_override
     if device_normalized_override:
-        # Override input
-        device_normalized = device
-        logger.debug(f"Setting {device_normalized=} from device_normalized_override")
-    elif device:
+        logger.debug(
+            f"Using device_list=[{device_normalized_override=}], device_normalized={device_normalized_override=}",
+        )
+        return [device_normalized_override], device_normalized_override
+
+    # check for cuda once
+    cuda_available = torch.cuda.is_available()
+
+    # normalize device, or set sane defaults if not provided
+    device_normalized: torch.device
+    if device:
         device_normalized = normalize_device(device)
-        logger.debug(f"Setting {device_normalized=} from {device=} using normalize_device()")
     else:
-        # no device provided
-        device_normalized = None
-        logger.debug(f"No device provided, setting {device_normalized=} initially")
+        device_normalized = normalize_device("cuda" if cuda_available else "cpu")
+        logger.debug(
+            f"No device provided and {cuda_available=}, setting sane default {device_normalized=}",
+        )
+    # Always use device_normalized from here
+    del device
 
-    # Check for no CUDA and set sane hardware-based defaults
-    if not torch.cuda.is_available():
-        # if non-cpu device requested error
-        if device_normalized and (device_normalized.type != "cpu"):
-            message = "when CUDA is not available device must be 'cpu'."
-            raise RuntimeError(message)
-        # otherwise, fallback to cpu
-        device_normalized = torch.device("cpu")
-        logger.debug(f"No cuda devices available, setting sane default of {device_normalized=}")
-    elif not device:
-        # sane hardware-dependent default if no device provided
-        device_normalized = torch.device("cuda")
-        logger.debug(f"No device provided, and cuda available, setting sane default of {device_normalized=}")
+    # Fallback to cpu for device if cuda requested but not available
+    if device_normalized.type == "cuda" and not cuda_available:
+        logger.warning("CUDA device requested and CUDA unavailable, falling back to cpu mode")
+        device_normalized = normalize_device("cpu")
 
-    # Just return if we already have a device_list
-    if device_list_override is not None:
-        # Manual override, e.g., from prior call to this manager
-        logger.debug(f"Using device_list={device_list_override=}")
-        return device_list_override, device_normalized
-
-    # Only "auto", or "balanced" or None supported for now
-    if (device_map is not None) and device_map not in ("auto", "balanced", "cuda"):
+    # If no device_map, just use the device
+    if not device_map:
+        # just use device_normalized
+        device_list = [device_normalized]
+    elif (not cuda_available) or (torch.cuda.device_count() == 0):
+        # only one "cpu" used for non-cuda (regardless of core/cpu count)
+        logger.warning(f"Proviced {device_map=} and no cuda and/or cuda devices available, falling back to cpu")
+        device_list = [normalize_device("cpu")]
+    elif device_map in ("auto", "cuda", "balanced"):
+        # device_map requested, cuda is available, and at least one cuda device exists
+        device_list = [torch.device(f"cuda:{i}") for i in range(torch.cuda.device_count())]
+    else:
         message = "Only device_map of 'auto', 'balanced', 'cuda' or None is supported."
         raise ValueError(message)
 
-    # For cpu-only work loads, the device list is always a single cpu device
-    # For systems with only one visible/available device, only "cuda:0" is valid
-    if torch.cuda.device_count() <= 1:
-        logger.debug(f"Only one or zero cuda devices available, using {device_normalized=} for device_list")
-        return [device_normalized], device_normalized
+    # final sanity check for cuda requested but unavailable
+    if not cuda_available:
+        if device_normalized.type == "cuda":
+            message = "Cuda unavailable and device_item is cuda"
+            raise ValueError(message)
+        if any(device_item.type == "cuda" for device_item in device_list):
+            message = "Cuda unavailable and at least one device_list item is cuda"
+            raise ValueError(message)
+    # final sanity check for mixed devices
+    unique_device_types = {device_item.type for device_item in device_list} | {device_normalized.type}
+    if len(unique_device_types) != 1:
+        message = "Unexpected mix of cuda and non-cuda devices detected in device_normalized and device_list"
+        raise ValueError(message)
 
-    # If device_map is "auto", "balanced" or "cuda", then list all available cuda devices
-    # Note: a check for no-cuda was already
-    if (device_map in ("auto", "balanced", "cuda")) and torch.cuda.is_available():
-        device_list = [torch.device(f"cuda:{i}") for i in range(torch.cuda.device_count())]
-        logger.debug(f"Setting {device_list=} from {device_map=} in device_guard")
-        return device_list, device_normalized
-
-    message = "Unable to determine device_list and device_normalized form inputs and system."
-    raise ValueError(message)
+    logger.debug(f"Choices for device_guard: {device_list=}, {device_normalized=}")
+    return device_list, device_normalized
 
 
 def dtype_guard(
