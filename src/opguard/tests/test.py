@@ -282,7 +282,7 @@ def controlnets(test_image: PILImage | None = None) -> dict[str, Any]:
         try:
             with control_type() as control:
                 control_output = None
-                if control.CALLABLE:
+                if control.IS_CALLABLE:
                     control_output = control(input_raw=test_image).resize(display_size)
                 control_outputs.append(control_output)
                 return_control[control.NAME] = control_output

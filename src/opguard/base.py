@@ -129,6 +129,8 @@ class OpGuardBase(ABC):
                 preference order: torch.bfloat16 -> torch.float16 -> torch.float32
                 Note: this is device (compute capability) dependent
                 Note: if bfloat16 causes issues, override with wider supported float16
+            IS_CALLABLE: whether object is callable (default True)
+                Note: only False for rare cases like diffusion pipe components
     """
 
     # --- Specialize Here -----
@@ -163,7 +165,7 @@ class OpGuardBase(ABC):
     # Whether gradients are needed
     NEED_GRADS: ClassVar[bool] = False
     # Whether class is callable (only False in special cases, e.g., pipe components)
-    CALLABLE: ClassVar[bool] = True
+    IS_CALLABLE: ClassVar[bool] = True
 
     def _caller(self, *, input_raw: Any, **kwargs) -> Any:
         """Actual call line inside __call__ safe wrapper."""

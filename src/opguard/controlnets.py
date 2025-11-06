@@ -21,7 +21,8 @@ from .base import OpGuardBase
 class ControlnetBase(OpGuardBase):
     """Abstract class for controlnets."""
 
-    CALLABLE: ClassVar[bool] = False
+    # All controlnets are non-callable, only associated detectors are
+    IS_CALLABLE: ClassVar[bool] = False
 
     # Stub for callers
     def _caller(self, *args: object, **kwargs: object) -> None:
