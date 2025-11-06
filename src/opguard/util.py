@@ -1097,7 +1097,7 @@ def device_guard(
             - if neither `device` nor `device_map` is provided
         - Allows overrides if previously computed, while retaining lightweight sanity checks
     """
-    # ruff: noqa: PLR0912  # this is complex logic and most branches are sanity checks
+    # ruff: noqa: PLR0912, C901  # this is complex logic and most branches are sanity checks
 
     # device list takes precedence
     if device_list_override:
@@ -1134,6 +1134,12 @@ def device_guard(
         )
         device_map = None
         device_normalized = normalize_device("cpu")
+    if device_normalized.type == "cpu" and cuda_available:
+        logger.warning(
+            "CPU device requested and CUDA available, falling back to cpu mode and device_map=None",
+        )
+        device_map = None
+        device_normalized = normalize_device("cpu")
 
     # If no device_map, just use the device
     if not device_map:
@@ -1165,7 +1171,10 @@ def device_guard(
     # final sanity check for mixed devices
     unique_device_types = {device_item.type for device_item in device_list} | {device_normalized.type}
     if len(unique_device_types) != 1:
-        message = "Unexpected mix of cuda and non-cuda devices detected in device_normalized and device_list"
+        message = (
+            f"Unexpected mix of cuda and non-cuda devices ({unique_device_types}) "
+            "detected in device_normalized and device_list"
+        )
         raise ValueError(message)
 
     logger.debug(f"Choices for device_guard: {device_list=}, {device_normalized=}")
