@@ -60,10 +60,10 @@ Minimal example: this will apply all the guards (with default options)
 #   Note: this must be in all derived classe to avoid contravariance errors
 
 from abc import ABC, abstractmethod
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from inspect import isabstract
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, Protocol, runtime_checkable
 
 import torch
 from loguru import logger
@@ -76,6 +76,16 @@ from .util import (
     init_guard,
     load_guard,
 )
+
+
+@runtime_checkable
+class Detector(Protocol):
+    """The expected attributes of detector types.
+
+    This includes the critical parts of for load_pretrained.
+    """
+
+    from_pretrained: Callable
 
 
 class OpGuardBase(ABC):
@@ -154,6 +164,11 @@ class OpGuardBase(ABC):
     def REVISION(self) -> str:  # noqa: N802  (becomes a ClassVar when concrete)
         """The revision identifier for the model weights."""
 
+    @property
+    @abstractmethod
+    def DETECTOR_TYPE(self) -> Detector:  # noqa: N802  (becomes a ClassVar when concrete)
+        """The object type for the detector for which weights are loaded into."""
+
     # --- Subclasses may override ---
 
     # Default torch device
@@ -176,9 +191,24 @@ class OpGuardBase(ABC):
         return self._postprocess(output_raw=output_raw, **kwargs)  # output_proc
 
     @abstractmethod
-    def _load_detector(self, *, model_id_overrde: str | None = None, **kwargs) -> Any:
+    def _load_detector(self, **kwargs) -> object:
         """Return an initialized detector model, must be specialized."""
-        raise NotImplementedError
+        additional_kwargs: dict[str, Any] = {}
+        if self.variant is not None:
+            additional_kwargs["variant"] = self.variant
+        if self.use_safetensors:
+            additional_kwargs["use_safetensors"] = self.use_safetensors
+        if self.local_files_only:
+            additional_kwargs["local_files_only"] = self.local_files_only
+        # override these if desired
+        additional_kwargs |= kwargs or {}
+
+        return self.DETECTOR_TYPE.from_pretrained(
+            self.model_id,
+            revision=self.REVISION,
+            torch_dtype=self.dtype,
+            **additional_kwargs,
+        ).to(self.device, self.dtype)
 
     def _load_processor(self, **kwargs) -> Any:
         """Load preprocessor (optional), often also used for post-processing."""
@@ -319,6 +349,7 @@ class OpGuardBase(ABC):
             "NAME",
             "MODEL_ID",
             "REVISION",
+            "DETECTOR_TYPE",
             "NEED_GRADS",
             "IS_CALLABLE",
             "DEFAULT_DEVICE",
