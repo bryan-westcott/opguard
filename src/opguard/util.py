@@ -1249,7 +1249,7 @@ def variant_guard(
     revision: str | None = None,
     local_hfhub_variant_check_only: bool = False,
     variant_override: str | None = None,
-) -> str:
+) -> str | None:
     """Decide which Hugging Face Hub *variant* to request for a model download.
 
     This helper returns a `variant` string suitable for passing to
@@ -1320,7 +1320,8 @@ def variant_guard(
     >>> variant = variant_guard(variant_override="int8")
     >>> snapshot_download("org/model", variant=variant)
     """
-    no_variant: str = ""
+    variant: str | None
+    no_variant: str | None = None
     if variant_override is not None:
         # Manual override, e.g., from prior call to this manager
         logger.debug(f"Using {variant_override=}")
@@ -1873,7 +1874,7 @@ def init_guard(
     device_normalized_override: torch.device | None = None,
     dtype_override: torch.dtype | None = None,
     variant_override: str | None = None,
-) -> tuple[list[str], torch.device, torch.dtype, str, DeviceMapLike | None]:
+) -> tuple[list[str], torch.device, torch.dtype, str | None, DeviceMapLike | None]:
     """Aggregate context manager for init: device_guard, dtype_guard, variant_guard."""
     device_list: list[torch.device]
     device_normalized: torch.device
@@ -1888,7 +1889,7 @@ def init_guard(
         dtype_desired=dtype,
         dtype_override=dtype_override,
     )
-    variant: str = variant_guard(
+    variant: str | None = variant_guard(
         dtype=effective_dtype,
         model_id=model_id,
         revision=revision,
