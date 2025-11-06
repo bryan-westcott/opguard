@@ -12,7 +12,14 @@ from .base import OpGuardBase
 
 
 class AutoencoderBase(OpGuardBase):
-    """Tiny VAE and Autoencoder KL base class for both SD and SDXL."""
+    """Tiny VAE and Autoencoder KL base class for both SD and SDXL.
+
+    By passing mode of "encode", "decode" or "encode-decode"
+    different aspects (or both aspects) of the autoencoder can
+    be exercised
+
+    Note: the encode-decode is more useful for testsing purposes
+    """
 
     def _load_processor(self) -> VaeImageProcessor:
         return VaeImageProcessor(vae_scale_factor=8)
