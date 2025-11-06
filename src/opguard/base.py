@@ -64,6 +64,7 @@ from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from inspect import isabstract
 from typing import Any, ClassVar, Literal, Protocol, runtime_checkable
+import inspect
 
 import torch
 from loguru import logger
@@ -184,22 +185,28 @@ class OpGuardBase(ABC):
     # Whether class is callable (only False in special cases, e.g., pipe components)
     IS_CALLABLE: ClassVar[bool] = True
 
+
     def _caller(self, *, input_raw: Any, **kwargs) -> Any:
         """Actual call line inside __call__ safe wrapper."""
-        input_proc = self._preprocess(input_raw=input_raw, **kwargs)
-        output_raw = self._predict(input_proc=input_proc, **kwargs)
-        return self._postprocess(output_raw=output_raw, **kwargs)  # output_proc
+        # To avoid complexity, a single set of kwargs are provided,
+        # and routed appropriately based on the signature of each caller step
+        # Note: this prevents the need for adding a **kwargs to each step to 
+        #       absorb unused kwargs that would otherwise trigger an 
+        #       "unexpected keyword argument" error
+        preprocess_kwargs = self.filter_kwargs(self._preprocess, kwargs)
+        predict_kwargs = self.filter_kwargs(self._predict, kwargs)
+        postprocess_kwargs = self.filter_kwargs(self._postprocess, kwargs)
+        # perform call, with appropriate kwargs
+        input_proc = self._preprocess(input_raw=input_raw, **preprocess_kwargs)
+        output_raw = self._predict(input_proc=input_proc, **predict_kwargs)
+        return self._postprocess(output_raw=output_raw, **postprocess_kwargs)  # output_proc
 
-    @abstractmethod
     def _load_detector(self, **kwargs) -> object:
         """Return an initialized detector model, must be specialized."""
-        additional_kwargs: dict[str, Any] = {}
-        if self.variant is not None:
-            additional_kwargs["variant"] = self.variant
-        if self.use_safetensors:
-            additional_kwargs["use_safetensors"] = self.use_safetensors
-        if self.local_files_only:
-            additional_kwargs["local_files_only"] = self.local_files_only
+        additional_keywords = ("variant", "use_safetensors", "local_files_only", "device_map")
+        additional_kwargs: dict[str, Any] = {
+            keyword: getattr(self, keyword) for keyword in additional_keywords if getattr(self, keyword)
+        }
         # override these if desired
         additional_kwargs |= kwargs or {}
 
@@ -528,3 +535,17 @@ class OpGuardBase(ABC):
             if (not self.keep_warm) and (not self._in_context):
                 self._free(reason=f"per-call finally, {self.keep_warm=}, {self._in_context=}")
                 logger.debug(f"Lazy freeing {self.NAME} due to {self.keep_warm=}, {self._in_context=}")
+
+    @staticmethod
+    def filter_kwargs(func: Callable, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Return a subset of kwargs valid for the given function.
+
+        If the function accepts **kwargs, all entries are kept.
+        Otherwise, only keyword-only parameters defined in the
+        function signature are retained.
+        """
+        params = inspect.signature(func).parameters.values()
+        if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params):
+            return dict(kwargs)
+        keep = {p.name for p in params if p.kind is inspect.Parameter.KEYWORD_ONLY}
+        return {k: v for k, v in kwargs.items() if k in keep}
