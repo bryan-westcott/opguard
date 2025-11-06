@@ -121,14 +121,16 @@ class OpGuardBase(ABC):
             MODEL_ID (str): Huggingface ID of the model
             REVISION (str): Huggingface revision (git hash or branch like "main")
         - Optional override:
-            NEED_GRADS: whether gradients are needed
-                - Note: usually false except for techniques like inversion
+            NEED_GRADS: whether gradients are needed (default is False)
+                - Note: usually False except for techniques like inversion
             DEFAULT_DEVICE (str | int | torch.device): default device to be used (default is "cuda")
             DEFAULT_DEVICE_MAP: default device mapping (for models that use it, default is "auto")
             DTYPE_PREFERENCE: preference for smallest precision
                 preference order: torch.bfloat16 -> torch.float16 -> torch.float32
                 Note: this is device (compute capability) dependent
                 Note: if bfloat16 causes issues, override with wider supported float16
+            USE_SAFETENSORS: whether to request safe serialized from huggingface hub (default True)
+                Note: for cached/exported models, it will always be safetensors
             IS_CALLABLE: whether object is callable (default True)
                 Note: only False for rare cases like diffusion pipe components
     """
