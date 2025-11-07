@@ -450,7 +450,27 @@ def slow() -> None:
     cpu()
     gpu()
     bfloat()
+    vae()
     fp16vae()
-    nlp()
+    nlp(test_blip1=True, test_blip2=False)
     sd()
-    controlnets()
+    control()
+
+
+@pytest.mark.large
+def large() -> None:
+    """Large VRAM tests, runs large models."""
+    if not torch.cuda.is_available():
+        logger.warning("Some tests will be skipped due to lack of CUDA/GPU")
+    logger.info("Running 'slow' meta test set")
+    nlp(test_blip1=False, test_blip2=True)
+    sdxl()
+    inversion()
+
+
+@pytest.mark.full
+def full() -> None:
+    """Run smoke, slow and large tests."""
+    smoke()
+    slow()
+    large()
