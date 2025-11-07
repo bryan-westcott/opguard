@@ -571,10 +571,25 @@ class OpGuardBase(ABC):
     def detector(self) -> Any:
         """Retrieve model, lazy loading if needed.
 
-        Note: Will also detach (to cpu) all outputs to avoid dangling references tying up VRAM
+        Notes:
+        * Will also detach (to cpu) all outputs to avoid dangling references tying up VRAM
+        * Useful for things like attaching pipe components to a diffusers model:
+            >>> opguard_vae_model = VaeSdxlFp16Fix()
+            >>> StableDiffusionXLPipeline.from_pretrained(model_id, vae=opguard_vae_model.detector)
         """
         with self.lazy_loader_context():
             return self._detector
+
+    @property
+    def processor(self) -> Any:
+        """Retrieve detector, simple loading.
+
+        Notes:
+        * only the main model is guarded since pre-processors typically are lightweight.
+        * this is added mainly for consistency with the detector API and to allow future
+          extensibility
+        """
+        return self._processor
 
     @contextmanager
     def lazy_loader_context(self) -> Generator[None, None, None]:
