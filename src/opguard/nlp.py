@@ -64,6 +64,8 @@ class Blip2(Blip):
     REVISION = "main"
     DETECTOR_TYPE = Blip2ForConditionalGeneration
     FROM_PRETRAINED_ADDITIONAL_KWARGS: ClassVar[dict[str, Any]] = {"load_in_8bit": True}
+    SKIP_TO_DEVICE = True
+    SKIP_TO_DTYPE = True
 
     def _load_processor(self) -> Blip2Processor:
         return Blip2Processor.from_pretrained(
