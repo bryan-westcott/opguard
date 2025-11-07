@@ -141,7 +141,7 @@ class InversionSdxlReconstruct(OpGuardBase):
         )
         # Call normal loader with defaults, but add SDXL specific args
         pipe: StableDiffusionXLPipeline = super()._load_detector(
-            vae=vae,
+            vae=vae.detector,
             scheduler=ddim_scheduler,
         )
         # Allows it to fit on a 24GB GPU
