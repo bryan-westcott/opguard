@@ -280,6 +280,9 @@ def controlnets(test_image: PILImage | None = None) -> dict[str, Any]:
     for control_type in control_types:
         logger.info(f"Running test: {control_type}")
         try:
+            if control_type in (MarigoldDepthDetector, MarigoldNormalsDetector):
+                logger.warning("Skipping marigold control tests due lack of CUDA/GPU")
+                continue
             with control_type() as control:
                 control_output = None
                 if control.IS_CALLABLE:
@@ -413,7 +416,10 @@ def nlp() -> None:
 @pytest.mark.sd
 def sd() -> None:
     """Test BLIP1 captioner."""
-    sd_tiny()
+    if torch.cuda.is_available():
+        sd_tiny()
+    else:
+        logger.warning("Unable to run sd tests due to loack of CUDA/GPU")
 
 
 @pytest.mark.control
@@ -425,6 +431,8 @@ def control() -> None:
 @pytest.mark.slow
 def slow() -> None:
     """Slower tests, checks basic caching and multiple precision/devices."""
+    if not torch.cuda.is_available():
+        logger.warning("Some tests will be skipped due to lack of CUDA/GPU")
     cpu()
     gpu()
     bfloat()
