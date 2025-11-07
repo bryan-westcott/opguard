@@ -404,7 +404,7 @@ def sync_gc_and_cache_cleanup(
     * it is best to sync within a try block *without* suppression, as that are were some errors surface
     * device_list required for sync, even if not used to avoid potentially raising exception in exception
     """
-    logger.debug(f"cleanup: {device_list=}, {do_sync=}, {do_garbage_collect=}, {do_empty_cache=}, {suppress_errors=}")
+    logger.trace(f"cleanup: {device_list=}, {do_sync=}, {do_garbage_collect=}, {do_empty_cache=}, {suppress_errors=}")
 
     # Choose context manager once
     cx = suppress(Exception) if suppress_errors else nullcontext()
@@ -740,7 +740,7 @@ def _cache_location_info(
         export_dir = (
             hf_hub_cache_dir().parent / exports_subdir / repo_folder_name(repo_id=export_name, repo_type="model")
         ).resolve()
-    logger.debug(
+    logger.trace(
         f"Export {'requested' if base_export_name else 'not requested'} "
         f"(due to {base_export_name=}) and {dtype=}, "
         f"setting: {export_name=}, {export_variant=}, {export_dir=}",
@@ -827,7 +827,7 @@ def _cache_signature(
             default=str,
         ).encode(),
     ).hexdigest()
-    logger.debug(
+    logger.trace(
         f"Signature for {export_name}: metadata hash: {_hash_shortener(signature)}, "
         f"metadata: {_metadata_hash_shortener(signature_metadata)}",
     )
@@ -865,7 +865,7 @@ def _cache_match(
         # detect a match
         signature_found = prior_metadata.get("signature") if isinstance(prior_metadata, dict) else ""
         match = signature_expected == signature_found
-        logger.debug(
+        logger.trace(
             f"Export {match=} in cache_guard, signatures: "
             f"expected={_hash_shortener(signature_expected)}, "
             f"found={_hash_shortener(signature_found)}",
@@ -892,35 +892,35 @@ def _cache_get_loader_overrides(
     overrides: dict[str, Any] = {}
     # determine which to use
     if match and not force_export_refresh:
-        logger.debug(f"Importing in cache_guard due to {match=}, {force_export_refresh=}")
+        logger.trace(f"Importing in cache_guard due to {match=}, {force_export_refresh=}")
         # A match and also no refresh
         if not export_dir:
             message = "Must provide export_dir when loading from export."
             raise ValueError(message)
         # resolve the export directory
-        logger.debug(f"Setting {model_id=} to {export_dir=}")
+        logger.trace(f"Setting {model_id=} to {export_dir=}")
         overrides["model_id"] = export_dir
-        logger.debug("Setting local_files_only to True (for all exports)")
+        logger.trace("Setting local_files_only to True (for all exports)")
         overrides["local_files_only"] = True
-        logger.debug("Setting use_safetensors to True (for all exports)")
+        logger.trace("Setting use_safetensors to True (for all exports)")
         overrides["use_safetensors"] = True
-        logger.debug(f"Setting variant to {export_variant} (for all exports)")
+        logger.trace(f"Setting variant to {export_variant} (for all exports)")
         overrides["variant"] = export_variant
     else:
-        logger.debug(f"Not importing in cache_guard due to {match=}, {force_export_refresh=}")
+        logger.trace(f"Not importing in cache_guard due to {match=}, {force_export_refresh=}")
         # Either it doesn't match or we want to force a refresh
         if only_load_export and not force_export_refresh:
             # Raise exception if strict mode, unless force_export_refresh
             message = f"exported model not found in cache {export_dir=}"
             raise LocalEntryNotFoundError(message)
         # decision on whether to use local or remote files on refresh
-        logger.debug(f"Leaving {model_id=} unchanged")
-        logger.debug(f"Overriding local_files_only to {local_files_only_on_refresh=}")
+        logger.trace(f"Leaving {model_id=} unchanged")
+        logger.trace(f"Overriding local_files_only to {local_files_only_on_refresh=}")
         overrides["local_files_only"] = local_files_only_on_refresh
-        logger.debug(f"Overriding use_safetensors to {use_safetensors=}")
+        logger.trace(f"Overriding use_safetensors to {use_safetensors=}")
         overrides["use_safetensors"] = use_safetensors
     # work with a copy, then override
-    logger.debug(f"Final cache overrides: {overrides=}")
+    logger.trace(f"Final cache overrides: {overrides=}")
     return overrides
 
 
@@ -956,7 +956,7 @@ def _cache_apply_loader_overrides(
         else:
             message = f"No target to override {key}"
             raise ValueError(message)
-        logger.debug(f"Overriding: {key} with {value}")
+        logger.trace(f"Overriding: {key} with {value}")
 
     return new_kwargs
 
@@ -971,7 +971,7 @@ def _cache_export_model(
     force_export_refresh: bool,
 ) -> None:
     """Export the model to local export, if applicable."""
-    logger.debug(
+    logger.trace(
         f"Exporting model with: model={type(model).__name__}, {export_dir=}, {match=}, {force_export_refresh=}",
     )
     if not export_dir:
@@ -1026,7 +1026,7 @@ def _cache_export_model(
             "created_at_pretty": created_at_pretty,
             "created_at_unix": created_at_unix,
         }
-        logger.debug(f"Model {type(model).__name__} metadata={_metadata_hash_shortener(metadata)}")
+        logger.trace(f"Model {type(model).__name__} metadata={_metadata_hash_shortener(metadata)}")
         # Add variant if appropriate
         save_kwargs: dict[str, Any] = {
             "safe_serialization": True,  # Always use safetensors
@@ -1035,9 +1035,9 @@ def _cache_export_model(
         # (transformers does not support variant)
         if (base_module == "diffusers") and ("variant" in metadata):
             save_kwargs = {"variant": metadata["variant"]}
-            logger.debug(f"Adding {save_kwargs['variant']=} to save_pretrained")
+            logger.trace(f"Adding {save_kwargs['variant']=} to save_pretrained")
         else:
-            logger.debug("Skipping variant in save_kwargs argument to save_pretrained")
+            logger.trace("Skipping variant in save_kwargs argument to save_pretrained")
         # Now ensure directory exists and is empty
         if export_dir.exists():
             shutil.rmtree(export_dir)
@@ -1047,11 +1047,11 @@ def _cache_export_model(
             message = "Model provided has no save_pretrained method"
             raise ValueError(message)
         model.save_pretrained(export_dir, **save_kwargs)
-        logger.debug(f"Model {type(model).__name__} saved to {export_dir=} with {save_kwargs=}")
+        logger.trace(f"Model {type(model).__name__} saved to {export_dir=} with {save_kwargs=}")
         (export_dir / "metadata.json").write_text(
             json.dumps(metadata, indent=2, sort_keys=False),
         )
-        logger.debug(f"Export for cache_guard written to: {export_dir}")
+        logger.trace(f"Export for cache_guard written to: {export_dir}")
 
 
 # ---------- guards you can compose ----------
@@ -1104,10 +1104,10 @@ def device_guard(
         if not device_normalized_override:
             message = "if device_list_overide is provided, device_normalized_override must also be provided"
             raise ValueError(message)
-        logger.debug(f"Using device_list={device_list_override=}, device_normalized={device_normalized_override=}")
+        logger.trace(f"Using device_list={device_list_override=}, device_normalized={device_normalized_override=}")
         return device_list_override, device_normalized_override, device_map
     if device_normalized_override:
-        logger.debug(
+        logger.trace(
             f"Using device_list=[{device_normalized_override=}], device_normalized={device_normalized_override=}",
         )
         return [device_normalized_override], device_normalized_override, device_map
@@ -1121,7 +1121,7 @@ def device_guard(
         device_normalized = normalize_device(device)
     else:
         device_normalized = normalize_device("cuda" if cuda_available else "cpu")
-        logger.debug(
+        logger.trace(
             f"No device provided and {cuda_available=}, setting sane default {device_normalized=}",
         )
     # Always use device_normalized from here
@@ -1177,7 +1177,7 @@ def device_guard(
         )
         raise ValueError(message)
 
-    logger.debug(f"Choices for device_guard: {device_list=}, {device_normalized=}")
+    logger.trace(f"Choices for device_guard: {device_list=}, {device_normalized=}")
     return device_list, device_normalized, device_map
 
 
@@ -1224,7 +1224,7 @@ def dtype_guard(
     """
     if dtype_override is not None:
         # Manual override, e.g., from prior call to this manager
-        logger.debug(f"Using {dtype_override=}")
+        logger.trace(f"Using {dtype_override=}")
         return dtype_override
 
     # check for no devices
@@ -1263,7 +1263,7 @@ def dtype_guard(
         logger.warning(message)
         dtype_desired = torch.float16
 
-    logger.debug(f"Choosing dtype {dtype_desired}")
+    logger.trace(f"Choosing dtype {dtype_desired}")
     return dtype_desired
 
 
@@ -1349,7 +1349,7 @@ def variant_guard(
     no_variant: str | None = None
     if variant_override is not None:
         # Manual override, e.g., from prior call to this manager
-        logger.debug(f"Using {variant_override=}")
+        logger.trace(f"Using {variant_override=}")
         variant = variant_override
     # Check other args
     elif (not dtype) or (not model_id):
@@ -1380,9 +1380,9 @@ def variant_guard(
             except LocalEntryNotFoundError:
                 has_fp16 = False
                 return no_variant
-            logger.debug(f"Variant result {has_fp16=} in local huggingface_hub cache in variant_guard")
+            logger.trace(f"Variant result {has_fp16=} in local huggingface_hub cache in variant_guard")
         else:
-            logger.debug(
+            logger.trace(
                 f"Checking huggingface hub for variant due to {local_hfhub_variant_check_only=} in variant_guard",
             )
             # The very first time the model is cached, we must poll HF Hub
@@ -1390,12 +1390,12 @@ def variant_guard(
             api = HfApi()
             files: Iterable[str] = api.list_repo_files(repo_id=model_id, revision=revision)
             has_fp16 = any(("fp16" in f) or ("float16" in f) for f in files)
-            logger.debug(f"Variant result {has_fp16=} from huggingface_hub in variant_guard")
+            logger.trace(f"Variant result {has_fp16=} from huggingface_hub in variant_guard")
         variant = "fp16" if has_fp16 else no_variant
     else:
         message = f"Invalid dtype provided: {dtype=}"
         raise ValueError(message)
-    logger.debug(f"Setting {variant=} from {dtype=}")
+    logger.trace(f"Setting {variant=} from {dtype=}")
     return variant
 
 
@@ -1426,14 +1426,14 @@ def local_guard(*, local_files_only: bool = True) -> Generator[bool, None, None]
     """
     old = os.environ.get("HF_HUB_OFFLINE")
     try:
-        logger.debug(f"Setting HF_HUB_OFFLINE according to {local_files_only=} in local_guard")
+        logger.trace(f"Setting HF_HUB_OFFLINE according to {local_files_only=} in local_guard")
         if local_files_only:
             os.environ["HF_HUB_OFFLINE"] = "1"
         else:
             os.environ.pop("HF_HUB_OFFLINE", None)
         yield local_files_only
     finally:
-        logger.debug("Restoring HF_HUB_OFFILNE in local_guard exit")
+        logger.trace("Restoring HF_HUB_OFFILNE in local_guard exit")
         if old is None:
             os.environ.pop("HF_HUB_OFFLINE", None)
         else:
@@ -1517,7 +1517,7 @@ def eval_guard(
     >>> with eval_guard(models_or_loader=model, train_mode=False) as m:
     ...     assert m is model  # same reference; now in eval()
     """
-    logger.debug(f"Applying eval_guard with {train_mode=}, {type(models_or_loader)=}, ")
+    logger.trace(f"Applying eval_guard with {train_mode=}, {type(models_or_loader)=}, ")
 
     # a simple train attr setter with fixed train_mode based on eval_guard argumenmt
     def _apply_train(out: object) -> object:
@@ -1655,7 +1655,7 @@ def cache_guard(
 
     # Check for params in loader self in case it is a bound method
     if (not loader_params_obj and not loader_kwargs) and hasattr(loader_fn, "__self__"):
-        logger.debug("Bound method for loader_fn detected, using loader.__self__ for loader_params_obj")
+        logger.trace("Bound method for loader_fn detected, using loader.__self__ for loader_params_obj")
         # Detect bound `self` (None if free function)
         loader_params_obj = loader_fn.__self__
         params_location = "Bound method: loader_fn.__self__"
@@ -1666,7 +1666,7 @@ def cache_guard(
     else:
         message = "No valid source for params"
         raise ValueError(message)
-    logger.debug(f"Params location: {params_location}")
+    logger.trace(f"Params location: {params_location}")
 
     # Only one source of truth here
     if (loader_params_obj is None) == (loader_kwargs is None):
@@ -1754,7 +1754,7 @@ def grad_guard(*, need_grads: bool) -> Generator[None, None, None]:
         - `inference_mode()` is more efficient than `no_grad()` because it also
           freezes version counters and avoids autograd book-keeping.
     """
-    logger.debug(f"Context for grad_guard: {need_grads=}")
+    logger.trace(f"Context for grad_guard: {need_grads=}")
     ctx = torch.set_grad_enabled(True) if need_grads else torch.inference_mode()
     with ctx:
         yield
@@ -1787,7 +1787,7 @@ def autocast_guard(
         - By default, AMP is enabled for any dtype other than float32.
     """
     enabled = (dtype is not torch.float32) if enabled_override is None else enabled_override
-    logger.debug(f"Context for autocast_guard: {enabled=}, {dtype=}, {enabled_override=}")
+    logger.trace(f"Context for autocast_guard: {enabled=}, {dtype=}, {enabled_override=}")
     with torch.autocast("cuda", dtype=dtype, enabled=enabled):
         yield
 
@@ -1826,7 +1826,7 @@ def vram_guard(
     """
     try:
         if caller_fn is not None:
-            logger.debug(f"Guarding {caller_fn=} with {detach_outputs=} in vram_guard")
+            logger.trace(f"Guarding {caller_fn=} with {detach_outputs=} in vram_guard")
             # apply the wrapper
             if detach_outputs:
                 yield make_guarded_call(caller_fn, to_cpu_detached)
@@ -1842,7 +1842,7 @@ def vram_guard(
                 torch.cuda.synchronize(dev)
     except Exception as e:
         # Sanitize and re-raise exception
-        logger.debug("Exception inside vram_guard guarded execution")
+        logger.trace("Exception inside vram_guard guarded execution")
         if sanitize_all_exceptions:
             # Log full traceback
             logger.exception("Guarded region failed")
@@ -1852,7 +1852,7 @@ def vram_guard(
         # re-raise original exception with or without sanitization
         raise
     finally:
-        logger.debug("Performing vram_guard cleanup")
+        logger.trace("Performing vram_guard cleanup")
         sync_gc_and_cache_cleanup(
             do_sync=True,
             do_garbage_collect=True,
@@ -1872,7 +1872,7 @@ def free_guard(*, device_list: list[torch.device], run_gc_and_clear_cache: bool 
     #       and we already handled RuntimeErrors inside model_guard
     # Note: must sync and gc to get proper cache clear
     if run_gc_and_clear_cache:
-        logger.debug("Applying garbage collection and torch cache clear in free_guard")
+        logger.trace("Applying garbage collection and torch cache clear in free_guard")
         sync_gc_and_cache_cleanup(
             do_sync=True,
             do_garbage_collect=True,
@@ -1968,7 +1968,7 @@ def call_guard(
 
     Includes: eval_guard, grad_guard, autocast_guard, vram_guard
     """
-    logger.debug(
+    logger.trace(
         f"Guarding call with {need_grads=}, {sanitize_all_exceptions=}, "
         f"{detach_outputs=}, {caller_fn=}, {effective_dtype=}, "
         f"{device_list=}, {train_mode=}, "

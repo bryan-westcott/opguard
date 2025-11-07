@@ -174,7 +174,7 @@ def _sdxl_vae_roundtrip(*, device: str | torch.device = "cuda", dtype: torch.dty
     # ruff: noqa: ANN003  (too restrictive on tests)
 
     with VaeSdxlFp16Fix(device_override=device, dtype_override=dtype, **kwargs) as vae:
-        logger.info(
+        logger.debug(
             f"Running vae-for-sdxl roundtrip test for {type(vae).__name__} with: {device=}, {dtype=}, {kwargs=}",
         )
         input_image = load_test_image(final_size=(512, 512), allow_direct_download=False)
@@ -186,7 +186,7 @@ def _tiny_vae_roundtrip(*, device: str | torch.device, dtype: torch.dtype, **kwa
     """Tiny round-trip VAE that exercises OpGuard with various device/dtypes."""
     # ruff: noqa: ANN003  (too restrictive on tests)
     with VaeTinyForSd(device_override=device, dtype_override=dtype, **kwargs) as vae:
-        logger.info(f"Running vae-tiny roundtrip test for {type(vae).__name__} with: {device=}, {dtype=}, {kwargs=}")
+        logger.debug(f"Running vae-tiny roundtrip test for {type(vae).__name__} with: {device=}, {dtype=}, {kwargs=}")
         input_image = load_test_image(final_size=(512, 512), allow_direct_download=False)
         output_image = vae(input_raw=input_image, mode="encode-decode")
     assert input_image.size == output_image.size
@@ -195,10 +195,13 @@ def _tiny_vae_roundtrip(*, device: str | torch.device, dtype: torch.dtype, **kwa
 def _tiny_vae_roundtrip_sequence(*, device: str | torch.device, dtype: torch.dtype) -> None:
     """Test tiny VAE round trip, but also exercise local export caching."""
     # run it once, forcing refresh of export and remote variant check
+    logger.debug("Running with forced export refresh (1/3)")
     _tiny_vae_roundtrip(device=device, dtype=dtype, local_hfhub_variant_check_only=False, force_export_refresh=True)
     # then run with defaults
+    logger.debug("Running with default cache handling (2/3)")
     _tiny_vae_roundtrip(device=device, dtype=dtype)
     # then explicitly force use of local cache export and variant check
+    logger.debug("Running with export only (3/3)")
     _tiny_vae_roundtrip(device=device, dtype=dtype, local_hfhub_variant_check_only=True, only_load_export=True)
 
 
@@ -210,12 +213,12 @@ def blip(*, test_image: PILImage | None = None, test_blip1: bool = True, test_bl
     if test_blip2:
         with Blip2() as blip2:
             caption_blip2 = blip2(input_raw=test_image)
-            logger.info(f"blip2: {caption_blip2}")
+            logger.debug(f"blip2: {caption_blip2}")
             caption_blip2_conditional = blip2(
                 input_raw=test_image,
                 text="Question: What color is her hair? Answer:",
             )
-            logger.info(f"blip2 (question): {caption_blip2_conditional}")
+            logger.debug(f"blip2 (question): {caption_blip2_conditional}")
             return_blip2 = {
                 "caption_blip2": caption_blip2,
                 "caption_blip2_conditional": caption_blip2_conditional,
@@ -223,10 +226,10 @@ def blip(*, test_image: PILImage | None = None, test_blip1: bool = True, test_bl
     if test_blip1:
         with Blip1() as blip1:
             caption_blip1 = blip1(input_raw=test_image)
-            logger.info(f"blip1 (blip1): {caption_blip1}")
+            logger.debug(f"blip1 (blip1): {caption_blip1}")
             text_blip1 = "Hair Color"
             caption_blip1_conditional = blip1(input_raw=test_image, text=text_blip1)
-            logger.info(f'blip1 (text="{text_blip1}"): {caption_blip1_conditional}')
+            logger.debug(f'blip1 (text="{text_blip1}"): {caption_blip1_conditional}')
             return_blip1 = {
                 "caption_blip1": caption_blip1,
                 "caption_blip1_conditional": caption_blip1_conditional,
@@ -278,7 +281,7 @@ def controlnets(test_image: PILImage | None = None) -> dict[str, Any]:
     control_outputs = []
     return_control = {}
     for control_type in control_types:
-        logger.info(f"Running test: {control_type}")
+        logger.info(f"Running controlnet test: {control_type}")
         try:
             if control_type in (MarigoldDepthDetector, MarigoldNormalsDetector):
                 logger.warning("Skipping marigold control tests due lack of CUDA/GPU")
@@ -309,8 +312,8 @@ def sdxl_inversion(
             input_raw=test_image,
             generated_caption=generated_caption,
         )
-        logger.info(inverse_latent.shape)
-        logger.info(inversion.extra_info["sdxl_model_name"])
+        logger.debug(inverse_latent.shape)
+        logger.debug(inversion.extra_info["sdxl_model_name"])
         return_inverse = {
             "inverse_latent": inverse_latent,
             "inverse_config": inverse_config,
@@ -322,7 +325,7 @@ def sdxl_inversion(
             inverse_config=inverse_config,
             inverse_caption=inverse_caption,
         )
-        logger.info(reconstructed_image.size)
+        logger.debug(reconstructed_image.size)
         return_reconstructed = {
             "reconstructed_image": reconstructed_image,
             "reconstructed_config": reconstructed_config,
@@ -338,16 +341,11 @@ def sdxl_inversion(
     return return_inverse | return_reconstructed | {"test_image": test_image} | {"image_grid": image_grid}
 
 
-@pytest.mark.inversion
-def inversion() -> None:
-    """Test inversion."""
-    sdxl_inversion(test_image=None, generated_caption=None)
-
-
 @pytest.mark.smoke
 def smoke() -> None:
     """Simplest run (no CUDA/GPU needed)."""
     # Note: same as single vae run but always CPU
+    logger.info("Running 'smoke' tests")
     _tiny_vae_roundtrip(
         device="cpu",
         dtype=torch.float32,
@@ -359,12 +357,14 @@ def smoke() -> None:
 @pytest.mark.cpu
 def cpu() -> None:
     """Test CPU mode, full precision."""
+    logger.info("Running 'cpu' tests")
     _tiny_vae_roundtrip_sequence(device="cpu", dtype=torch.float32)
 
 
 @pytest.mark.gpu
 def gpu() -> None:
     """Test GPU mode, half-precision."""
+    logger.info("Running 'gpu' tests")
     if torch.cuda.is_available():
         _tiny_vae_roundtrip_sequence(device="cuda", dtype=torch.float16)
     else:
@@ -377,6 +377,7 @@ def bfloat() -> None:
 
     Note: will fail if no GPU, and fallback to float16 if insufficient compute capability.
     """
+    logger.info("Running 'bfloat' tests")
     if torch.cuda.is_available():
         _tiny_vae_roundtrip_sequence(device="cuda", dtype=torch.bfloat16)
     else:
@@ -389,6 +390,7 @@ def fp16vae() -> None:
 
     Note: will fail if no GPU, and fallback to float16 if insufficient compute capability.
     """
+    logger.info("Running 'fp16vae' tests")
     if torch.cuda.is_available():
         _sdxl_vae_roundtrip(
             local_hfhub_variant_check_only=False,
@@ -398,24 +400,17 @@ def fp16vae() -> None:
         logger.warning("Unable to run sdxl_vae_fp16_fix tests due to loack of CUDA/GPU")
 
 
-@pytest.mark.vae
-def vae() -> None:
-    """VAE test."""
-    cpu()
-    gpu()
-    bfloat()
-    fp16vae()
-
-
 @pytest.mark.nlp
 def nlp() -> None:
     """Test BLIP1 captioner."""
+    logger.info("Running 'nlp' tests")
     blip(test_blip2=False)
 
 
 @pytest.mark.sd
 def sd() -> None:
     """Test BLIP1 captioner."""
+    logger.info("Running 'sd' tests")
     if torch.cuda.is_available():
         sd_tiny()
     else:
@@ -425,7 +420,25 @@ def sd() -> None:
 @pytest.mark.control
 def control() -> None:
     """Test various controlnets."""
+    logger.info("Running 'control' tests")
     controlnets()
+
+
+@pytest.mark.inversion
+def inversion() -> None:
+    """Test inversion."""
+    logger.info("Running 'inversion' tests")
+    sdxl_inversion(test_image=None, generated_caption=None)
+
+
+@pytest.mark.vae
+def vae() -> None:
+    """VAE test."""
+    logger.info("Running 'vae' meta test set")
+    cpu()
+    gpu()
+    bfloat()
+    fp16vae()
 
 
 @pytest.mark.slow
@@ -433,6 +446,7 @@ def slow() -> None:
     """Slower tests, checks basic caching and multiple precision/devices."""
     if not torch.cuda.is_available():
         logger.warning("Some tests will be skipped due to lack of CUDA/GPU")
+    logger.info("Running 'slow' meta test set")
     cpu()
     gpu()
     bfloat()

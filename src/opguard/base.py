@@ -372,7 +372,7 @@ class OpGuardBase(ABC):
                   with MyGuard(...) as g:
                       out = g(input_raw=...)
         """
-        logger.info(f"Initializing OpGuard {self.NAME} using {self.classname} from {self.MODEL_ID}@{self.REVISION}")
+        logger.debug(f"Initializing OpGuard {self.NAME} using {self.classname} from {self.MODEL_ID}@{self.REVISION}")
         # ruff: noqa: PLR0913  (configurable util with sane defaults)
         # A placeholder for overriding MODEL_ID without mutating class
         self._model_id_override: str | None = None
@@ -409,7 +409,7 @@ class OpGuardBase(ABC):
             revision=self.REVISION,
             local_hfhub_variant_check_only=local_hfhub_variant_check_only,
         )
-        logger.info(
+        logger.debug(
             f"Choices for {self.NAME}: {self.dtype=}, {self.variant=}, "
             f"{self.device=}, {self.device_map=}, {self.device_list=}",
         )
@@ -488,7 +488,7 @@ class OpGuardBase(ABC):
         # Always indicate potentially unfreed
         self._is_freed = False
         # Now attemtp to load
-        logger.info(f"Loading model(s) for {self.NAME}: model_id={self.model_id}")
+        logger.debug(f"Loading model(s) for {self.NAME}: model_id={self.model_id}")
 
         # reset to empty
         if self.extra_info:
@@ -507,13 +507,13 @@ class OpGuardBase(ABC):
                 force_export_refresh=self.force_export_refresh,
                 use_safetensors=self.USE_SAFETENSORS,
             )
-        logger.info(
+        logger.debug(
             f"Loaded detector for {self.model_id}: {type(self._detector)}, "
             f"dtype={getattr(self._detector, 'dtype', None)}, "
             f"device={getattr(self._detector, 'device', None)}",
         )
         if self._processor:
-            logger.info(
+            logger.debug(
                 f"Loaded processor for {self.model_id}: {type(self._processor)}, "
                 f"dtype={getattr(self._processor, 'dtype', None)}, "
                 f"device={getattr(self._processor, 'device', None)}",
@@ -569,7 +569,7 @@ class OpGuardBase(ABC):
         Note: Will also detach (to cpu) all outputs to avoid dangling references tying up VRAM
         """
         # ruff: noqa: SIM117  (clarity is better)
-        logger.info(f"Running inference (call) for {self.NAME}...")
+        logger.debug(f"Running inference (call) for {self.NAME}...")
         with self.lazy_loader_context():
             # Autocast for proper precision, accounting for gradient needs, also stream synchronize
             # Note: dtype and device guard are already pre-checked in init
@@ -633,9 +633,8 @@ class OpGuardBase(ABC):
     def filter_kwargs(func: Callable, kwargs: dict[str, Any]) -> dict[str, Any]:
         """Return a subset of kwargs valid for the given function.
 
-        If the function accepts **kwargs, all entries are kept.
-        Otherwise, only keyword-only parameters defined in the
-        function signature are retained.
+        If the function accepts **kwargs, all entries are kept. Otherwise, only keyword-
+        only parameters defined in the function signature are retained.
         """
         params = inspect.signature(func).parameters.values()
         if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params):
