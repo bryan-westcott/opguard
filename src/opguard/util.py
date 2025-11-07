@@ -1247,7 +1247,9 @@ def dtype_guard(
 
     # check for not all cuda devices with GPU tpes
     if (dtype_desired in gpu_dtypes) and not all(device.type == "cuda" for device in device_list):
-        message = f"All device types must be cuda GPU-only {dtype_desired}, falling back to torch.float32"
+        message = (
+            f"All device types ({device_list}) must be cuda for GPU-only {dtype_desired}, falling back to torch.float32"
+        )
         logger.warning(message)
         dtype_desired = torch.float32
 
