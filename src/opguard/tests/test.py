@@ -450,7 +450,7 @@ def slow() -> None:
     cpu()
     gpu()
     bfloat()
-    vae()
+    fp16vae()
     nlp()
     sd()
     controlnets()
