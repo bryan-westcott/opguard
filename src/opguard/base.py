@@ -261,7 +261,7 @@ class OpGuardBase(ABC):
             from_pretrained_kwargs |= self.FROM_PRETRAINED_ADDITIONAL_KWARGS
         # Add overrrides
         if kwargs:
-            logger.debug(f"Overiding kwargs: {kwargs=}")
+            logger.debug(f"Overriding kwargs: {self.short_print_models(kwargs)}")
             from_pretrained_kwargs |= kwargs
 
         # to kwargs
