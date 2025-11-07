@@ -272,7 +272,10 @@ class OpGuardBase(ABC):
             to_kwargs["dtype"] = self.dtype
 
         # Load model with basic arguments and additional kwargs
-        logger.debug(f"Loading {self.DETECTOR_TYPE} with model_id={self.model_id}, kwargs={from_pretrained_kwargs}")
+        logger.debug(
+            f"Loading {self.DETECTOR_TYPE} with model_id={self.model_id}, "
+            f"kwargs={self.short_print_models(from_pretrained_kwargs)}",
+        )
         model = self.DETECTOR_TYPE.from_pretrained(self.model_id, **from_pretrained_kwargs)
         logger.debug(f"Applying model.to() with {to_kwargs=}, due to {self.SKIP_TO_DEVICE=}, {self.SKIP_TO_DTYPE=}")
         return model.to(**to_kwargs) if to_kwargs else model
@@ -641,3 +644,8 @@ class OpGuardBase(ABC):
             return dict(kwargs)
         keep = {p.name for p in params if p.kind is inspect.Parameter.KEYWORD_ONLY}
         return {k: v for k, v in kwargs.items() if k in keep}
+
+    @staticmethod
+    def short_print_models(kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Replace models (torch diffusers, etc.) with the name for printing."""
+        return {k: type(v).__name__ if isinstance(v, torch.nn.Module) else v for k, v in kwargs.items()}
