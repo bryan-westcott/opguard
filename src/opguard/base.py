@@ -284,8 +284,17 @@ class OpGuardBase(ABC):
 
     def _preprocess(self, *, input_raw: Any, **kwargs) -> Any:
         """Preprocessing, default is no-op, override for custom behavior."""
-        logger.debug("Running default _preprocess(), simple passthrough")
-        return input_raw  # default: input_proc = input_raw
+        if self._processor is None:
+            logger.debug(f"Running default simple passthrough preprocessor due to {self._processor}")
+            return input_raw  # default: input_proc = input_raw
+        if hasattr(self._processor, "preprocess"):
+            logger.debug("Detected 'preprocessor' method in self._processor, running with defaults")
+            return self._processor.preprocess(input_raw)
+        if callable(self._processor):
+            logger.debug("Detected callable self._processor, running with defaults")
+            return self._processor(input_raw)
+        message = "Unexpected processor structure, provide a specialized _preprocess method to fix"
+        raise ValueError(message)
 
     def _predict(self, *, input_proc: Any, **kwargs) -> Any:
         """Call the detector, default is a simple call, may be overridden."""
@@ -296,8 +305,17 @@ class OpGuardBase(ABC):
 
     def _postprocess(self, *, output_raw: Any, **kwargs) -> Any:
         """Postprocessing, default is no-op, override for custom behavior."""
-        logger.debug("Running default _postprocess(), simple passthrough")
-        return output_raw  # default: output_proc = output_raw
+        if self._processor is None:
+            logger.debug(f"Running default simple passthrough postprocessor due to {self._processor}")
+            return output_raw  # default: output_proc = output_raw
+        if hasattr(self._processor, "postprocess"):
+            logger.debug("Detected 'postprocessor' method in self._processor, running with defaults")
+            return self._processor.preprocessor(output_raw)
+        logger.debug(
+            "Detected loaded '_processor' but has no 'postprocessor' method, "
+            "running simple passthrough, specialize _postprocessor if desired.",
+        )
+        return output_raw
 
     # --- Boilerplate After Here ---
 
