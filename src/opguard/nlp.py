@@ -5,6 +5,7 @@
 
 from typing import Any, ClassVar
 
+import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from transformers import (
@@ -63,6 +64,7 @@ class Blip2(Blip):
     MODEL_ID = "Salesforce/blip2-opt-2.7b"
     REVISION = "main"
     DETECTOR_TYPE = Blip2ForConditionalGeneration
+    DTYPE_PREFERENCE = torch.float16  # when using 8-bit bnb, must use float16 not bfloat16
     FROM_PRETRAINED_ADDITIONAL_KWARGS: ClassVar[dict[str, Any]] = {"load_in_8bit": True}
     SKIP_TO_DEVICE = True
     SKIP_TO_DTYPE = True
