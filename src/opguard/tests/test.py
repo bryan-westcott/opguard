@@ -404,7 +404,7 @@ def fp16vae() -> None:
 def nlp() -> None:
     """Test BLIP1 captioner."""
     logger.info("Running 'nlp' tests")
-    blip(test_blip2=False)
+    blip(test_blip1=True)
 
 
 @pytest.mark.sd
@@ -452,7 +452,7 @@ def slow() -> None:
     bfloat()
     vae()
     fp16vae()
-    nlp(test_blip1=True, test_blip2=False)
+    nlp()
     sd()
     control()
 
@@ -463,7 +463,7 @@ def large() -> None:
     if not torch.cuda.is_available():
         logger.warning("Some tests will be skipped due to lack of CUDA/GPU")
     logger.info("Running 'slow' meta test set")
-    nlp(test_blip1=False, test_blip2=True)
+    blip(test_blip1=False, test_blip2=True)
     sdxl()
     inversion()
 
