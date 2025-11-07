@@ -132,6 +132,8 @@ class InversionSdxlReconstruct(OpGuardBase):
     MODEL_ID = "stabilityai/stable-diffusion-xl-base-1.0"
     REVISION = "main"
     DETECTOR_TYPE = StableDiffusionXLPipeline
+    SKIP_TO_DEVICE = True
+    SKIP_TO_DTYPE = True
 
     def _load_detector(self) -> StableDiffusionXLPipeline:
         vae = VaeSdxlFp16Fix()
