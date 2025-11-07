@@ -61,7 +61,7 @@ class SdTinyNanoTextToImage(StableDiffusionBase):
     MODEL_ID = "bguisard/stable-diffusion-nano-2-1"
     REVISION = "main"
     DETECTOR_TYPE = StableDiffusionPipeline
-    DEFAULT_DTYPE = torch.float16  # bnb 4bit doesn't support bfloat16 as a starting point
+    DTYPE_PREFERENCE = torch.float16  # bnb 4bit doesn't support bfloat16 as a starting point
 
     def _load_detector(self) -> object:
         # Swap in TinyVAE for SD1.x
