@@ -31,7 +31,7 @@ Use them directly if you only need specific functionality:
 | **Initialization** |       `init_guard`       | `device_guard`,<br>`dtype_guard`,<br>`variant_guard` | Pick the best device, dtype, and model variant for your hardware        |
 | **Loading**        |       `load_guard`       |   `local_guard`,<br>`eval_guard`,<br>`cache_guard`   | Enforce local-only loads, set train/eval mode, and safely cache exports |
 | **Calling**        |       `call_guard`       |  `autocast_guard`,<br>`grad_guard`,<br>`vram_guard`  | Handle mixed precision, no-grad inference, and predictable VRAM cleanup |
-| **Cleanup**        |            -             |                     `free_guard`                     | Garbage-collect and clear Torch caches on release                       |
+| **Cleanup**        |            -             |                     `free_guard`                     | Garbage-collect and clear Torch caches on release (included in OpGuard) |
 
 ---
 
@@ -40,54 +40,74 @@ Use them directly if you only need specific functionality:
 If you’d rather not wire these together yourself, subclass `OpGuardBase`.
 It gives you **all of the above** in one clean abstraction:
 
-- device/dtype/variant resolution
-- automatic precision fallback (bf16 → fp16 → fp32)
-- local-only caching and export management
-- deterministic AMP / grad / VRAM cleanup
-- trace-scrubbing exception handling
+- **Automatic precision fallback** — picks the best supported dtype/device/variant
+- **Local-only caching** — no accidental network pulls in production
+- **Automatic AMP/eval/no-grad mode** — automatic mixed precision, no-gradient and eval modes
+- **Guarded execution** — detaches outputs and clears VRAM on every free
+- **Predictable cleanup** — no zombie tensors, no jupyter restarts, even on exceptions
+- **VRAM-safe exception handling** — careful trace-scrubbing and garbage/cache handling avoids leaks on exceptions
+- **Revision-aware exports** — protects you from silent upstream changes
+- **Unified API** — works with Diffusers, Transformers, or your own models
+- **Easy/flexible extensibility** — easy to extend without boilerplate or dogmatism
+
+But also adds an abstract base class that is easily customizable with a few
+lines of code (see domain-specific examples in nlp.py, vae.py, sd.py, etc.).
+There are several approaches for specializing to a number of ML/AI problems beyond
+simple inference, including:
+
+- Diffusers mixins, see `sd.py`
+- Controlnets (not callable alone), see `control.py`
+- Inversion problems (uses grads), see `inversion.py`
+
+The goal is flexibility without dogmatic use patterns while retaining
+all the above protections.  OpGuard avoids the need for boilerplate code,
+allowing data scientists and developers to move quickly with confidence.
 
 ---
 
 ### 🚀 Minimal Example (Quick Start)
 
+Note that we only write code for the parts that differ from other models.
+All the model loading, device handling, revision enforcement, caching,
+memory (VRAM) management are all handled automatically.  Note also that
+the example below shows how easy it is to build an atypical use case:
+two calls to provide encode followed by decode.
+
 ```python
 import torch
 from opguard import OpGuardBase
+from diffusers import AutoencoderTiny
 
 class TinyVAE(OpGuardBase):
     NAME = "tiny-vae"
     MODEL_ID = "madebyollin/taesd"
     REVISION = "main"
+    DETECTOR_TYPE = AutoencoderTiny
 
-    def _load_detector(self, **kw):
-        from diffusers import AutoencoderTiny
-        return AutoencoderTiny.from_pretrained(
-            self.model_id,
-            torch_dtype=self.dtype,
-            local_files_only=self.local_files_only,
-            revision=self.revision,
-        ).to(self.device)
+    def _load_processor(self) -> VaeImageProcessor:
+        """Load the pre/post processor (detector for inference loaded automatically)"""
+        return VaeImageProcessor(vae_scale_factor=8)
+
+    def _preprocess(self, *, input_raw: PILImage) -> torch.FloatTensor:
+        """Apply pre-processing (called automatically before _predict)"""
+        return self._processor.preprocess(input_raw).to(self.device, self.dtype)  # (B,C,H,W)
 
     def _predict(self, *, input_proc):
+        """Build a bespoke predictor that does encode-decode sequence (two calls)."""
         return self._detector.decode(
             self._detector.encode(input_proc.to(self.device, self.dtype)).latents
         ).sample
 
+    def _postprocess(self, *, output_raw: torch.FloatTensor) -> PILImage:
+        """Apply post-processing (called automatically after _predict."""
+        return self._processor.postprocess(output_raw, output_type="pil")[0]
+
+# Test code
 with TinyVAE() as vae:
     x = torch.rand(1, 3, 512, 512, device=vae.device, dtype=vae.dtype) * 2 - 1
     y = vae(input_raw=x)
 ```
 
----
-
-### 🌟 What you get
-
-- **Automatic precision fallback** — picks the best supported dtype
-- **Local-only caching** — no accidental network pulls in production
-- **Guarded execution** — detaches outputs and clears VRAM on every call
-- **Predictable cleanup** — no zombie tensors, no restarts
-- **Revision-aware exports** — protects you from silent upstream changes
-- **Unified API** — works with Diffusers, Transformers, or your own models
 
 ---
 
