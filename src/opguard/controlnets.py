@@ -7,7 +7,10 @@ from collections.abc import Callable
 from typing import Any, ClassVar, cast
 
 import torch
-from controlnet_aux import HEDdetector
+
+# The root __init__.py in controlnet_aux is suppressed in opguard.__int__.py since most detectors not needed
+# which causes noisy warnings but also unnecessarily adds computation time
+from controlnet_aux.hed import HEDdetector  # Import only from .hed, do not import from base module
 from diffusers import ControlNetModel, MarigoldDepthPipeline, MarigoldNormalsPipeline
 from diffusers import ControlNetModel as ControlNetModel_Union
 from diffusers.pipelines.marigold.pipeline_marigold_depth import MarigoldDepthOutput
