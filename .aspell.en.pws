@@ -1,5 +1,6 @@
-personal_ws-1.1 en 21
+personal_ws-1.1 en 23
 Composable
+ControlNets
 Diffusers
 HTTPS
 Jupyter
@@ -9,6 +10,7 @@ Qdrant
 TLS
 Traefik
 VRAM
+customizable
 dtype
 dtypes
 eval

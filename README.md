@@ -44,23 +44,23 @@ It gives you **all of the above** in one clean abstraction:
 - **Local-only caching** — no accidental network pulls in production
 - **Automatic AMP/eval/no-grad mode** — automatic mixed precision, no-gradient and eval modes
 - **Guarded execution** — detaches outputs and clears VRAM on every free
-- **Predictable cleanup** — no zombie tensors, no jupyter restarts, even on exceptions
+- **Predictable cleanup** — no zombie tensors, no Jupyter restarts, even on exceptions
 - **VRAM-safe exception handling** — careful trace-scrubbing and garbage/cache handling avoids leaks on exceptions
 - **Revision-aware exports** — protects you from silent upstream changes
 - **Unified API** — works with Diffusers, Transformers, or your own models
 - **Easy/flexible extensibility** — easy to extend without boilerplate or dogmatism
 
-But also adds an abstract base class that is easily customizable with a few
-lines of code (see domain-specific examples in nlp.py, vae.py, sd.py, etc.).
+OpGuard also adds an abstract base class that is easily customizable with a few
+lines of code (see domain-specific examples in `nlp.py`, `vae.py`, `sd.py`, etc.).
 There are several approaches for specializing to a number of ML/AI problems beyond
 simple inference, including:
 
 - Diffusers mixins, see `sd.py`
-- Controlnets (not callable alone), see `control.py`
+- ControlNets (not callable alone), see `control.py`
 - Inversion problems (uses grads), see `inversion.py`
 
 The goal is flexibility without dogmatic use patterns while retaining
-all the above protections.  OpGuard avoids the need for boilerplate code,
+all the above protections. OpGuard avoids the need for boilerplate code,
 allowing data scientists and developers to move quickly with confidence.
 
 ---
@@ -69,7 +69,7 @@ allowing data scientists and developers to move quickly with confidence.
 
 Note that we only write code for the parts that differ from other models.
 All the model loading, device handling, revision enforcement, caching,
-memory (VRAM) management are all handled automatically.  Note also that
+memory (VRAM) management are all handled automatically. Note also that
 the example below shows how easy it is to build an atypical use case:
 two calls to provide encode followed by decode.
 
@@ -107,7 +107,6 @@ with TinyVAE() as vae:
     x = torch.rand(1, 3, 512, 512, device=vae.device, dtype=vae.dtype) * 2 - 1
     y = vae(input_raw=x)
 ```
-
 
 ---
 
