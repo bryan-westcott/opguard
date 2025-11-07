@@ -447,11 +447,6 @@ def slow() -> None:
     if not torch.cuda.is_available():
         logger.warning("Some tests will be skipped due to lack of CUDA/GPU")
     logger.info("Running 'slow' meta test set")
-    cpu()
-    gpu()
-    bfloat()
-    vae()
-    fp16vae()
     nlp()
     sd()
     control()
@@ -472,5 +467,6 @@ def large() -> None:
 def full() -> None:
     """Run smoke, slow and large tests."""
     smoke()
+    vae()
     slow()
     large()
