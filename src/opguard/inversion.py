@@ -49,6 +49,7 @@ class InversionSdxl(OpGuardBase):
         )
         pipe_inversion.enable_xformers_memory_efficient_attention()
         pipe_inversion.enable_attention_slicing()
+        pipe_inversion = pipe_inversion.to(dtype=self.dtype)
         return pipe_inversion
 
     def _preprocess(
