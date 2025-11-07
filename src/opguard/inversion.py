@@ -136,16 +136,21 @@ class InversionSdxlReconstruct(OpGuardBase):
     SKIP_TO_DTYPE = True
 
     def _load_detector(self) -> StableDiffusionXLPipeline:
-        vae = VaeSdxlFp16Fix()
         ddim_scheduler = DDIMScheduler.from_pretrained(
             self.model_id,
             subfolder="scheduler",
         )
         # Call normal loader with defaults, but add SDXL specific args
         pipe: StableDiffusionXLPipeline = super()._load_detector(
-            vae=vae.detector,
             scheduler=ddim_scheduler,
         )
+        with VaeSdxlFp16Fix(
+            device_override=self.device,
+            dtype_override=self.dtype,
+            device_map_override=self.device_map,
+        ) as vae:
+            pipe.vae = vae.detector
+
         # Allows it to fit on a 24GB GPU
         # Note: final vae and upsample will cause OOM on inference only
         #       inversion outputs latents so it fits as is
