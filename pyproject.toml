@@ -133,6 +133,12 @@ markers = [
 # never use system python
 python-preference = "only-managed"
 
+# override specific dependencies
+override-dependencies = [
+    "onnxruntime-gpu<1.20",  # 1.19 is max version that supports cuda compute capability 5.2
+    "onnxruntime<1.20",  # keep with onnxruntime-gpu
+]
+
 [tool.uv.sources]
 # ensure we get cuda-enabled torch repo, must also set tool.uv.index below
 # see: pytorch.org/get-started/locally: as of 02-june-2025 cuda 12.6 is
