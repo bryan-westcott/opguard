@@ -43,6 +43,7 @@ Composable context managers:
     - device_guard: resolve a deterministic device list (from device or device_map).
     - dtype_guard: validate requested dtype (bf16→fp16 fallback if needed).
     - variant_guard: choose the Hub download variant (e.g., "fp16") from dtype/repo contents.
+    - quant_guard: choose appropriate quantization
 - Model Loading:
     - local_guard: ensure use of huggingface_hub is in local files only mode.
     - eval_guard: recursively set .eval() or .train() mode on all models provided.
@@ -86,18 +87,30 @@ if TYPE_CHECKING:
     from contextlib import AbstractContextManager
 
 import torch
+from diffusers import BitsAndBytesConfig as DiffusersBitsAndBytesConfig
 from huggingface_hub import HfApi, snapshot_download
 from huggingface_hub.file_download import repo_folder_name
 from huggingface_hub.utils import LocalEntryNotFoundError
 from loguru import logger
+from transformers import BitsAndBytesConfig as TransformersBitsAndBytesConfig
 
 # ---------- type aliases (Py 3.11) ----------
 DeviceLike: TypeAlias = int | str | torch.device
 DeviceMapLike: TypeAlias = str | Mapping[str, DeviceLike]
+QuantConfigLike: TypeAlias = TransformersBitsAndBytesConfig | DiffusersBitsAndBytesConfig
 
 # for detach function
 DetachFn = Callable[[object], object]
 
+
+# The compute dtype
+SUPPORTED_QUANT_COMPUTE_DTYPES = (torch.float32, torch.float16, torch.bfloat16)
+# The 8-bit quantization types supported (i=int)
+SUPPORTED_QUANT_TYPES_8BIT = ("i8",)
+# The 4-bit quantization types supported (n=normalized)
+SUPPORTED_QUANT_TYPES_4BIT = ("fp4", "nf4")
+# The superset of quantization types supported
+SUPPORTED_QUANT_TYPES = SUPPORTED_QUANT_TYPES_8BIT + SUPPORTED_QUANT_TYPES_4BIT
 
 # The dtypes supported on GPU or CPU
 SUPPORTED_DTYPES_UNIVERSAL = (torch.float32,)
@@ -707,6 +720,7 @@ def _cache_location_info(
     *,
     base_export_name: str | None,
     dtype: torch.dtype,
+    quant_config: QuantConfigLike | None,
     exports_subdir: str = "exports",
 ) -> tuple[str | None, str | None, Path | None]:
     """Get export name,  variant and dir based on base_export_name and dtype.
@@ -737,12 +751,36 @@ def _cache_location_info(
     # but also put a suffix in the export name
     export_variant: str | None = None
     export_dir: Path | None = None
-    if base_export_name is not None:
+    if export_name is not None:
         # If half precision detected, make new variant, regardless if exits in hub
-        export_suffix: str | None = "fp16" if dtype in (torch.float16, torch.bfloat16) else None
+        export_variant_suffix: str | None
+        if dtype == torch.float32:
+            export_variant_suffix = None
+        elif dtype == torch.bfloat16:
+            export_variant_suffix = "bf16"
+        elif dtype == torch.float16:
+            export_variant_suffix = "fp16"
+        else:
+            message = f"Unexpected {dtype=}, cannot determine export_variant_suffix"
+            raise ValueError(message)
+
+        # If quantization detected, add quant type and optional double quant
+        export_quant_suffix: str | None
+        if quant_config is None:
+            export_quant_suffix = None
+        elif quant_config.load_in_8bit:
+            export_quant_suffix = "i8"
+        else:
+            export_quant_suffix = quant_config.bnb_4bit_quant_type
+            if quant_config.bnb_4bit_use_double_quant:
+                export_quant_suffix += "-dq"
+
         # Variants in separate directory for maintainability
-        if export_suffix is not None:
-            export_name = base_export_name + "-" + export_suffix
+        if export_variant_suffix is not None:
+            export_name += "-" + export_variant_suffix
+        if export_quant_suffix is not None:
+            export_name += "-" + export_quant_suffix
+
         # export_dir
         export_dir = (
             hf_hub_cache_dir().parent / exports_subdir / repo_folder_name(repo_id=export_name, repo_type="model")
@@ -1406,6 +1444,65 @@ def variant_guard(
     return variant
 
 
+def quant_guard(
+    *,
+    compute_dtype: torch.dtype,
+    model_type: Detector,
+    quant_type: str | None,
+    quant_config_override: QuantConfigLike | None = None,
+    quant_use_double: bool = False,
+    backend: str = "bnb",
+) -> QuantConfigLike | None:
+    """Determine quantization parameters, and if supported by hardware."""
+    if quant_config_override is not None:
+        logger.trace(f"Using existing {quant_config_override=}")
+        return quant_config_override
+    if quant_type is None:
+        logger.trace("No quant_type provided, skipping quantization")
+        return None
+
+    # check arguments
+    if compute_dtype not in SUPPORTED_QUANT_COMPUTE_DTYPES:
+        message = f"Requested {compute_dtype=} not in {SUPPORTED_QUANT_COMPUTE_DTYPES}"
+        raise ValueError(message)
+    if quant_type not in SUPPORTED_QUANT_TYPES:
+        message = f"Requested {quant_type=} not in {SUPPORTED_QUANT_TYPES}"
+        raise ValueError(message)
+    load_in_8bit = quant_type in SUPPORTED_QUANT_TYPES_8BIT
+    load_in_4bit = quant_type in SUPPORTED_QUANT_TYPES_4BIT
+    if load_in_8bit and quant_use_double:
+        message = f"Selected 8-bit type ({quant_type}) cannot set {quant_use_double=}, must be 4-bit"
+        raise ValueError(message)
+    bnb_4bit_compute_dtype = compute_dtype
+    bnb_4bit_quant_type = quant_type if load_in_4bit else ""
+    bnb_4bit_use_double_quant = quant_use_double if load_in_4bit else False
+
+    # check backend
+    if backend != "bnb":
+        message = f"Only 'bnb' quantization backedn supported, provided {backend=}"
+        raise ValueError(message)
+    # check if transformers or diffusers
+    module = getattr(model_type, "__module__", "None")
+    base_module = module.split(".")[0]
+    if base_module == "diffusers":
+        config_obj_type = DiffusersBitsAndBytesConfig
+    elif base_module == "transformers":
+        config_obj_type = TransformersBitsAndBytesConfig
+    else:
+        message = f"Invalid {base_module=}, cannot determine if transformers or diffusers"
+        raise ValueError(message)
+    quant_config = config_obj_type(
+        load_in_8bit=load_in_8bit,
+        load_in_4bit=load_in_4bit,
+        bnb_4bit_compute_dtype=bnb_4bit_compute_dtype,
+        bnb_4bit_quant_type=bnb_4bit_quant_type,
+        bnb_4bit_use_double_quant=bnb_4bit_use_double_quant,
+        llm_int8_has_fp16_weight=compute_dtype in (torch.float16, torch.bfloat16),
+    )
+    logger.trace(f"Setting {quant_config=}")
+    return quant_config
+
+
 @contextmanager
 def local_guard(*, local_files_only: bool = True) -> Generator[bool, None, None]:
     """Temporarily toggle Hugging Face *offline* mode via the HF_HUB_OFFLINE env var.
@@ -1559,6 +1656,7 @@ class LoaderParams(Protocol):
     local_files_only: bool
     revision: str
     use_safetensors: bool
+    quant_config: QuantConfigLike | None
 
 
 def cache_guard(
@@ -1691,11 +1789,16 @@ def cache_guard(
     if (dtype := loader_params_obj.dtype if loader_params_obj else loader_kwargs.get("dtype", None)) is None:
         message = "No source for dtype"
         raise ValueError(message)
+    if (
+        quant_config := loader_params_obj.quant_config if loader_params_obj else loader_kwargs.get("quant_config", None)
+    ) is None:
+        logger.trace(f"No quantization requested based on {quant_config=}")
 
     # get variant and variant-specific export name
     export_name, export_variant, export_dir = _cache_location_info(
         base_export_name=base_export_name,
         dtype=dtype,
+        quant_config=quant_config,
     )
     # compute signature and associated metadata used to craete it
     signature_expected, signature_metadata = _cache_signature(
@@ -1899,6 +2002,7 @@ def init_guard(
     dtype: torch.dtype,
     device: DeviceLike | None,
     device_map: DeviceMapLike | None,
+    model_type: Detector,
     model_id: str | None = None,
     revision: str | None = None,
     local_hfhub_variant_check_only: bool = False,
@@ -1906,7 +2010,10 @@ def init_guard(
     device_normalized_override: torch.device | None = None,
     dtype_override: torch.dtype | None = None,
     variant_override: str | None = None,
-) -> tuple[list[str], torch.device, torch.dtype, str | None, DeviceMapLike | None]:
+    quant_config: QuantConfigLike | None = None,
+    quant_type: str | None = None,
+    quant_use_double: bool = False,
+) -> tuple[list[str], torch.device, torch.dtype, str | None, DeviceMapLike | None, QuantConfigLike | None]:
     """Aggregate context manager for init: device_guard, dtype_guard, variant_guard."""
     device_list: list[torch.device]
     device_normalized: torch.device
@@ -1928,7 +2035,14 @@ def init_guard(
         variant_override=variant_override,
         local_hfhub_variant_check_only=local_hfhub_variant_check_only,
     )
-    return device_list, device_normalized, effective_dtype, variant, device_map
+    quant_config = quant_guard(
+        quant_config_override=quant_config,
+        compute_dtype=effective_dtype,
+        quant_type=quant_type,
+        quant_use_double=quant_use_double,
+        model_type=model_type,
+    )
+    return device_list, device_normalized, effective_dtype, variant, device_map, quant_config
 
 
 def load_guard(
@@ -2026,7 +2140,9 @@ def model_guard(
     """
     try:
         # detect device-specific settings
-        device_list, device_normalized, effective_dtype, variant, device_map = init_guard(**init_guard_kwargs)
+        device_list, device_normalized, effective_dtype, variant, device_map, quant_config = init_guard(
+            **init_guard_kwargs,
+        )
 
         # update
         # safely load the model
@@ -2038,6 +2154,7 @@ def model_guard(
             "variant": variant,
             "device_map": device_map,
             "local_files_only": init_guard_kwargs["local_files_only"],
+            "quant_config": quant_config,
         }
         model = load_guard(loader_kwargs=loader_kwargs, **load_guard_kwargs)
 
