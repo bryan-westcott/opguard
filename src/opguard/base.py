@@ -73,6 +73,7 @@ from .util import (
     Detector,
     DeviceLike,
     DeviceMapLike,
+    QuantConfigLike,
     call_guard,
     free_guard,
     init_guard,
@@ -196,6 +197,10 @@ class OpGuardBase(ABC):
     #       passing kwargs to super()._load_detector(kwargs) in
     #       overridden load_detector()
     FROM_PRETRAINED_ADDITIONAL_KWARGS: ClassVar[dict[str, Any]] = {}
+    # quantization type (see util.SUPPORTED_QUANT_TYPES)
+    DEFAULT_QUANT_TYPE: QuantConfigLike | None = None
+    # double quantization for 4-bit
+    DEFAULT_QUANT_USE_DOUBLE: bool = False
 
     def _caller(self, *, input_raw: Any, **kwargs) -> Any:
         """Actual call line inside __call__ safe wrapper."""
@@ -240,7 +245,14 @@ class OpGuardBase(ABC):
             from_pretrained_kwargs["local_files_only"] = self.local_files_only
         if self.device_map:
             from_pretrained_kwargs["device_map"] = self.device_map
+        if self.quant_config:
+            from_pretrained_kwargs["quantization_config"] = self.quant_config
         # Filter out those skipped
+        if not isinstance(self.FROM_PRETRAINED_SKIP_KWARGS, tuple):
+            message = (
+                "Attribute FROM_PRETRAINED_SKIP_KWARGS is not a tuple, be sure to add comma for singleton tuple values",
+            )
+            raise TypeError(message)
         if self.FROM_PRETRAINED_SKIP_KWARGS:
             logger.debug(f"Removing kwargs: {self.FROM_PRETRAINED_SKIP_KWARGS}")
             from_pretrained_kwargs = {
@@ -321,6 +333,9 @@ class OpGuardBase(ABC):
         dtype_override: torch.device | None = None,
         device_override: DeviceLike | None = None,
         device_map_override: DeviceMapLike | None = None,
+        quant_config_override: QuantConfigLike | None = None,
+        quant_type_override: str | None = None,
+        quant_use_double_override: bool = False,
         keep_warm: bool = False,
         sanitize_all_exceptions: bool = True,
         local_hfhub_variant_check_only: bool = False,
@@ -343,6 +358,13 @@ class OpGuardBase(ABC):
             device_map_override:
                 Optional multi-device placement override. It should be list of
                 torch devices, optionally a singleton list of the cpu device.
+            quant_config_override:
+                Optional quantization plan override, either
+                TransformersBitsAndBytesConfig or DiffusersBitsAndBytesConfig
+            quant_type_override:
+                Quantization types (see util.SUPPORTED_QUANT_TYPES)
+            quant_use_double:
+                Whether to use double quantization for 4-bit quantized types
             keep_warm:
                 If True, models are eagerly loaded on init and kept in memory
                 across calls. If False, loading may be lazy and `_free()` may
@@ -398,17 +420,22 @@ class OpGuardBase(ABC):
         self.sanitize_all_exceptions: bool = True
 
         # initialize dtype, variant, device_list based on runtime hardware
-        self.device_list, self.device, self.dtype, self.variant, self.device_map = init_guard(
+        self.device_list, self.device, self.dtype, self.variant, self.device_map, self.quant_config = init_guard(
             device=device_override or self.DEFAULT_DEVICE,
             device_map=device_map_override or self.DEFAULT_DEVICE_MAP,
             dtype=dtype_override or self.DTYPE_PREFERENCE,
+            quant_config=quant_config_override,
+            quant_type=quant_type_override or self.DEFAULT_QUANT_TYPE,
+            quant_use_double=quant_use_double_override or self.DEFAULT_QUANT_USE_DOUBLE,
+            model_type=self.DETECTOR_TYPE,
             model_id=self.model_id,
             revision=self.REVISION,
             local_hfhub_variant_check_only=local_hfhub_variant_check_only,
         )
         logger.debug(
             f"Choices for {self.NAME}: {self.dtype=}, {self.variant=}, "
-            f"{self.device=}, {self.device_map=}, {self.device_list=}",
+            f"{self.device=}, {self.device_map=}, {self.device_list=}, "
+            f"{self.quant_config=}",
         )
 
         # prepare detector now
