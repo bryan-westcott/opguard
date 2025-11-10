@@ -277,7 +277,9 @@ class OpGuardBase(ABC):
             f"kwargs={self.short_print_models(from_pretrained_kwargs)}",
         )
         model = self.DETECTOR_TYPE.from_pretrained(self.model_id, **from_pretrained_kwargs)
-        logger.debug(f"Applying model.to() with {to_kwargs=}, due to {self.SKIP_TO_DEVICE=}, {self.SKIP_TO_DTYPE=}")
+        logger.debug(
+            f"Applying or skipping model.to() with {to_kwargs=}, due to {self.SKIP_TO_DEVICE=}, {self.SKIP_TO_DTYPE=}",
+        )
         return model.to(**to_kwargs) if to_kwargs else model
 
     def _load_processor(self, **kwargs) -> Any:
