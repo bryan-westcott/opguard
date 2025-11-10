@@ -538,6 +538,10 @@ class OpGuardBase(ABC):
             logger.debug("Already freed, exiting early from _free()")
             return
 
+        if not hasattr(self, "device_list"):
+            logger.debug("Terminated before init_guard, nothing to free")
+            return
+
         with free_guard(device_list=self.device_list, run_gc_and_clear_cache=clear_cache):
             # free detector and processor, if allocated
             if self._detector:
