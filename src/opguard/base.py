@@ -654,4 +654,11 @@ class OpGuardBase(ABC):
     @staticmethod
     def short_print_models(kwargs: dict[str, Any]) -> dict[str, Any]:
         """Replace models (torch diffusers, etc.) with the name for printing."""
-        return {k: type(v).__name__ if isinstance(v, torch.nn.Module) else v for k, v in kwargs.items()}
+
+        def short_print_to_redact(value: object) -> bool:
+            return isinstance(value, torch.nn.Module) or getattr(value, "__module__", "None").split(".")[0] in (
+                "diffusers",
+                "transformers",
+            )
+
+        return {k: type(v).__name__ if short_print_to_redact(v) else v for k, v in kwargs.items()}
