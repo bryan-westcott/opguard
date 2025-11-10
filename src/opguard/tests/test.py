@@ -403,13 +403,20 @@ def fp16vae() -> None:
 @pytest.mark.nlp
 def nlp() -> None:
     """Test BLIP1 captioner."""
-    logger.info("Running 'nlp' tests")
-    blip(test_blip1=True)
+    logger.info("Running 'nlp' smaller tests")
+    blip(test_blip1=True, test_blip2=False)
+
+
+@pytest.mark.nlpxl
+def nlpxl() -> None:
+    """Test BLIP2 captioner."""
+    logger.info("Running 'nlp' large tests")
+    blip(test_blip1=False, test_blip2=True)
 
 
 @pytest.mark.sd
 def sd() -> None:
-    """Test BLIP1 captioner."""
+    """Test tiny SD."""
     logger.info("Running 'sd' tests")
     if torch.cuda.is_available():
         sd_tiny()
@@ -458,7 +465,7 @@ def large() -> None:
     if not torch.cuda.is_available():
         logger.warning("Some tests will be skipped due to lack of CUDA/GPU")
     logger.info("Running 'slow' meta test set")
-    blip(test_blip1=False, test_blip2=True)
+    nlpxl()
     sdxl()
     inversion()
 

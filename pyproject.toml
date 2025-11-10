@@ -74,7 +74,7 @@ build-backend = "setuptools.build_meta"
 [project.scripts]
 # quick
 pytest-smoke = "opguard.tests.test:smoke"
-# individual
+# individual slow
 pytest-vae = "opguard.tests.test:vae"
 pytest-nlp = "opguard.tests.test:nlp"
 pytest-control = "opguard.tests.test:control"
@@ -83,6 +83,9 @@ pytest-cpu = "opguard.tests.test:cpu"
 pytest-gpu = "opguard.tests.test:gpu"
 pytest-bfloat = "opguard.tests.test:bfloat"
 pytest-fp16vae = "opguard.tests.test:fp16vae"
+# individual large VRAM
+pytest-nlpxl = "opguard.tests.test:nlpxl"
+pytest-sdxl = "opguard.tests.test:sdxl"
 pytest-inversion = "opguard.tests.test:inversion"
 # sets of tests
 pytest-slow = "opguard.tests.test:slow"
@@ -96,7 +99,7 @@ pytest-full = "opguard.tests.test:full"
 testpaths = ["src/opguard/tests"]
 python_files = ["test.py"]
 # collect functions for possible use
-python_functions = ["smoke", "cpu", "gpu", "bfloat16", "vae", "fp16vae", "nlp", "sd", "control", "inversion", "slow", "large", "full"]
+python_functions = ["smoke", "cpu", "gpu", "bfloat16", "vae", "fp16vae", "nlp", "sd", "control", "nlpxl", "sdxl", "inversion", "slow", "large", "full"]
 # Default flags: no stdout spam, show locals on failure, fail on unknown marks
 addopts = """
   -q
@@ -123,6 +126,8 @@ markers = [
     "gpu: opt-in gpu test with caching using tiny vae",
     "bfloat: opt-in bflaot16 test with caching using tiny vae",
     "fp16vae: opt-in test of fp16 fixed sdxl vae",
+    "nlpxl: opt-in test of blip2",
+    "sdxl: opt-in test of sdxl",
     "inversion: opt-in test of sdxl inversion",
     "slow: opt-in slow tests, includes GPU and Bfloat16",
     "large: opt-in large-vram tests, includes SDXL and inversion",
