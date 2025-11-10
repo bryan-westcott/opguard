@@ -3,8 +3,6 @@
 # We do not care about LSP substitutability, OpGuardBase is not used directly
 # mypy: disable-error-code=override
 
-from typing import Any, ClassVar
-
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
@@ -65,9 +63,11 @@ class Blip2(Blip):
     REVISION = "main"
     DETECTOR_TYPE = Blip2ForConditionalGeneration
     DTYPE_PREFERENCE = torch.float16  # when using 8-bit bnb, must use float16 not bfloat16
-    FROM_PRETRAINED_ADDITIONAL_KWARGS: ClassVar[dict[str, Any]] = {"load_in_8bit": True}
+    DEFAULT_DEVICE_MAP = "auto"
     SKIP_TO_DEVICE = True
     SKIP_TO_DTYPE = True
+    DEFAULT_QUANT_TYPE = "i8"
+    FROM_PRETRAINED_SKIP_KWARGS = ("quantization_config",)  # use individual components
 
     def _load_processor(self) -> Blip2Processor:
         return Blip2Processor.from_pretrained(
@@ -75,4 +75,9 @@ class Blip2(Blip):
             revision=self.REVISION,
             use_fast=True,
             device_map=self.device_map,
+        )
+
+    def _load_detector(self) -> Blip2ForConditionalGeneration:
+        return super()._load_detector(
+            load_in_8bit=getattr(self.quant_config, "load_in_8bit", False),  # pair with FROM_PRETRAINED_SKIP_KWARGS
         )
