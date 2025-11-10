@@ -345,6 +345,7 @@ class OpGuardBase(ABC):
                 provided, uses the class default `DTYPE_PREFERENCE`. The final
                 `self.dtype` is chosen via `dtype_guard` with preference
                 **bfloat16 → float16 → float32** based on device support.
+                (see util.SUPPORTED_DTYPES)
             device_override:
                 Optional single-device override (e.g., 0, "cuda:1",
                 `torch.device("cuda:0")`). If omitted, uses `DEFAULT_DEVICE`.

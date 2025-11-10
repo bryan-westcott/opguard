@@ -99,6 +99,13 @@ DeviceMapLike: TypeAlias = str | Mapping[str, DeviceLike]
 DetachFn = Callable[[object], object]
 
 
+# The dtypes supported on GPU or CPU
+SUPPORTED_DTYPES_UNIVERSAL = (torch.float32,)
+# The dtypes supported only on GPU
+SUPPORTED_DTYPES_GPU = (torch.float16, torch.bfloat16)
+# Superset of all supported dtypes
+SUPPORTED_DTYPES = SUPPORTED_DTYPES_UNIVERSAL + SUPPORTED_DTYPES_GPU
+
 # ---------- Error detection / scrubbing ----------
 
 
@@ -1233,20 +1240,18 @@ def dtype_guard(
         raise ValueError(message)
 
     # check for supported dtypes
-    supported_dtypes = (torch.float32, torch.float16, torch.bfloat16)
-    if dtype_desired not in supported_dtypes:
-        message = f"Unsupported {dtype_desired=}, supported dtypes: {supported_dtypes}"
+    if dtype_desired not in SUPPORTED_DTYPES:
+        message = f"Unsupported {dtype_desired=}, supported dtypes: {SUPPORTED_DTYPES}"
         raise TypeError(message)
 
     # Check for no cuda with GPU types
-    gpu_dtypes = (torch.float16, torch.bfloat16)
-    if (dtype_desired in gpu_dtypes) and not torch.cuda.is_available():
+    if (dtype_desired in SUPPORTED_DTYPES_GPU) and not torch.cuda.is_available():
         message = f"CUDA not available for GPU-only {dtype_desired}, falling back to torch.float32"
         logger.warning(message)
         dtype_desired = torch.float32
 
     # check for not all cuda devices with GPU tpes
-    if (dtype_desired in gpu_dtypes) and not all(device.type == "cuda" for device in device_list):
+    if (dtype_desired in SUPPORTED_DTYPES_GPU) and not all(device.type == "cuda" for device in device_list):
         message = (
             f"All device types ({device_list}) must be cuda for GPU-only {dtype_desired}, falling back to torch.float32"
         )
@@ -1254,7 +1259,7 @@ def dtype_guard(
         dtype_desired = torch.float32
 
     # Check for any CPU device with GPU types
-    if (dtype_desired in gpu_dtypes) and any(device.type == "cpu" for device in device_list):
+    if (dtype_desired in SUPPORTED_DTYPES_GPU) and any(device.type == "cpu" for device in device_list):
         message = "CPU devices cannot support half-precision, falling back to torch.float32"
         logger.warning(message)
         dtype_desired = torch.float32
