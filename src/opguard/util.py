@@ -2059,3 +2059,13 @@ def model_guard(
         ):
             # explicitly delete it so GC/cache-clear can run
             del model
+
+
+@runtime_checkable
+class Detector(Protocol):
+    """The expected attributes of detector types.
+
+    This includes the critical parts of for load_pretrained.
+    """
+
+    from_pretrained: Callable

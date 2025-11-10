@@ -64,12 +64,13 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from inspect import isabstract
-from typing import Any, ClassVar, Literal, Protocol, runtime_checkable
+from typing import Any, ClassVar, Literal
 
 import torch
 from loguru import logger
 
 from .util import (
+    Detector,
     DeviceLike,
     DeviceMapLike,
     call_guard,
@@ -77,16 +78,6 @@ from .util import (
     init_guard,
     load_guard,
 )
-
-
-@runtime_checkable
-class Detector(Protocol):
-    """The expected attributes of detector types.
-
-    This includes the critical parts of for load_pretrained.
-    """
-
-    from_pretrained: Callable
 
 
 class OpGuardBase(ABC):
