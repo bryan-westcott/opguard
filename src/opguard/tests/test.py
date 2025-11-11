@@ -30,7 +30,7 @@ from opguard.controlnets import (
     UnionPromaxControlnet,
 )
 from opguard.inversion import InversionSdxl, InversionSdxlReconstruct
-from opguard.nlp import Blip1, Blip2
+from opguard.nlp import Blip1, Blip2_4Bit, Blip2_16Bit
 from opguard.sd import SdTinyNanoTextToImage, SdxlTextToImage
 from opguard.vae import VaeSdxlFp16Fix, VaeTinyForSd
 
@@ -205,13 +205,32 @@ def _tiny_vae_roundtrip_sequence(*, device: str | torch.device, dtype: torch.dty
     _tiny_vae_roundtrip(device=device, dtype=dtype, local_hfhub_variant_check_only=True, only_load_export=True)
 
 
-def blip(*, test_image: PILImage | None = None, test_blip1: bool = True, test_blip2: bool = True) -> dict[str, Any]:
+def blip(
+    *,
+    test_image: PILImage | None = None,
+    test_blip1: bool = True,
+    test_blip2_4bit: bool = True,
+    test_blip2_16bit: bool = True,
+) -> dict[str, Any]:
     """Test NLP objects."""
     test_image = test_image or load_test_image()
     return_blip1 = {}
     return_blip2 = {}
-    if test_blip2:
-        with Blip2() as blip2:
+    if test_blip2_16bit:
+        with Blip2_16Bit() as blip2:
+            caption_blip2 = blip2(input_raw=test_image)
+            logger.debug(f"blip2: {caption_blip2}")
+            caption_blip2_conditional = blip2(
+                input_raw=test_image,
+                text="Question: What color is her hair? Answer:",
+            )
+            logger.debug(f"blip2 (question): {caption_blip2_conditional}")
+            return_blip2 = {
+                "caption_blip2": caption_blip2,
+                "caption_blip2_conditional": caption_blip2_conditional,
+            }
+    if test_blip2_4bit:
+        with Blip2_4Bit() as blip2:
             caption_blip2 = blip2(input_raw=test_image)
             logger.debug(f"blip2: {caption_blip2}")
             caption_blip2_conditional = blip2(
@@ -404,14 +423,14 @@ def fp16vae() -> None:
 def nlp() -> None:
     """Test BLIP1 captioner."""
     logger.info("Running 'nlp' smaller tests")
-    blip(test_blip1=True, test_blip2=False)
+    blip(test_blip1=True, test_blip2_4bit=True, test_blip2_16bit=False)
 
 
 @pytest.mark.nlpxl
 def nlpxl() -> None:
     """Test BLIP2 captioner."""
     logger.info("Running 'nlp' large tests")
-    blip(test_blip1=False, test_blip2=True)
+    blip(test_blip1=False, test_blip2_4bit=False, test_blip2_16bit=True)
 
 
 @pytest.mark.sd
