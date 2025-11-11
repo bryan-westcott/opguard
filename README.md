@@ -7,6 +7,7 @@ Have you ever…
 - forgotten to call `.eval()` or disable grads before a “quick test”?
 - wished your favorite HF model already had your mixins and variant pre-baked?
 - reluctantly restarted a Jupyter kernel just to reclaim VRAM after a stray exception?
+- spent time fiddling with picky quantization parameters?
 - fought with yet another inconsistent model loader signature (but still love HF)?
 - watched production suddenly and perplexingly fail because a weight revision changed?
 - burned time and money re-caching publicly available weights across environments?
@@ -26,12 +27,12 @@ It wraps all the gritty setup and teardown around your model so you can focus on
 
 Use them directly if you only need specific functionality:
 
-| Category           | Convenience<br>Aggregate |                 Individual<br>Guards                 | Purpose                                                                 |
-| :----------------- | :----------------------: | :--------------------------------------------------: | :---------------------------------------------------------------------- |
-| **Initialization** |       `init_guard`       | `device_guard`,<br>`dtype_guard`,<br>`variant_guard` | Pick the best device, dtype, and model variant for your hardware        |
-| **Loading**        |       `load_guard`       |   `local_guard`,<br>`eval_guard`,<br>`cache_guard`   | Enforce local-only loads, set train/eval mode, and safely cache exports |
-| **Calling**        |       `call_guard`       |  `autocast_guard`,<br>`grad_guard`,<br>`vram_guard`  | Handle mixed precision, no-grad inference, and predictable VRAM cleanup |
-| **Cleanup**        |            -             |                     `free_guard`                     | Garbage-collect and clear Torch caches on release (included in OpGuard) |
+| Category           | Convenience<br>Aggregate |                          Individual<br>Guards                          | Purpose                                                                        |
+| :----------------- | :----------------------: | :--------------------------------------------------------------------: | :----------------------------------------------------------------------------- |
+| **Initialization** |       `init_guard`       | `device_guard`,<br>`dtype_guard`,<br>`variant_guard`,<br>`quant_guard` | Pick the best device, dtype, model variant, and quantization for your hardware |
+| **Loading**        |       `load_guard`       |            `local_guard`,<br>`eval_guard`,<br>`cache_guard`            | Enforce local-only loads, set train/eval mode, and safely cache exports        |
+| **Calling**        |       `call_guard`       |  `eval_guard`,<br>`autocast_guard`,<br>`grad_guard`,<br>`vram_guard`   | Handle mixed precision, no-grad inference, and predictable VRAM cleanup        |
+| **Cleanup**        |            -             |                              `free_guard`                              | Garbage-collect and clear Torch caches on release (included in OpGuard)        |
 
 ---
 

@@ -33,32 +33,26 @@ Composite context manager:
             preferred
 
 Aggregate context managers - used individually in classes (see OpGuardBase)
-- init_guard - aggregates: device_guard, dtype_guard, variant_guard
-- load_guard - aggregates: local_guard, eval_guard, cache_guard
-- call_guard - aggregates: autocast_guard, grad_guard, vram_guard
-- free_guard - (not an aggregate but only step on free)
-
-Composable context managers:
-- Initialization:
+- init_guard: for initialization, components:
     - device_guard: resolve a deterministic device list (from device or device_map).
     - dtype_guard: validate requested dtype (bf16→fp16 fallback if needed).
     - variant_guard: choose the Hub download variant (e.g., "fp16") from dtype/repo contents.
-    - quant_guard: choose appropriate quantization
-- Model Loading:
+    - quant_guard: choose appropriate quantization.
+- laod_guard: for loading the model, components:
     - local_guard: ensure use of huggingface_hub is in local files only mode.
     - eval_guard: recursively set .eval() or .train() mode on all models provided.
     - cache_guard: cache previously prepared and cast models locally
-- Model Calling
-    - autocast_guard: scope torch.autocast for the chosen device/dtype to reduce compute/memory.
+- call_guard: for calling the model (inference), components:
+    - eval_guard: recursively set .eval() or .train() mode on all models provided.
     - grad_guard: toggle torch.set_grad_enabled / torch.inference_mode.
+    - autocast_guard: scope torch.autocast for the chosen device/dtype to reduce compute/memory.
     - vram_guard: Prevent VRAM (or RAM) from getting pinned by stale tensors:
                 sync streams, detach/move outputs off-GPU as needed, run GC,
                 and torch.cuda.empty_cache(); coalesce/surface errors deterministically.
-- Clean-up
-    - free_guard: ensure garbage collection and torch cache clear happen after model delete
+- free_guard: ensure garbage collection and torch cache clear happen after model delete
 
-Utility functions:
-- Check support for bfloat16 (based on compute capability)
+Utility functionality:
+- Check support for bfloat16/quantization (based on compute capability)
 - Detach exception tracebacks (avoiding tying up VRAM/RAM on exceptions)
 - Device and device_map handling (normalization)
 """
