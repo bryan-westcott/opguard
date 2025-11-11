@@ -271,6 +271,42 @@ def device_supports_bfloat16(device: DeviceLike) -> bool:
 
 # ----------- detach outputs and cleanup --------------------
 
+_DTYPE_ALIASES: dict[str, torch.dtype] = {
+    "float32": torch.float32,
+    "torch.float32": torch.float32,
+    "fp32": torch.float32,
+    "float16": torch.float16,
+    "torch.float16": torch.float16,
+    "fp16": torch.float16,
+    "bfloat16": torch.bfloat16,
+    "torch.bfloat16": torch.float16,
+    "bf16": torch.float16,
+    "uint8": torch.uint8,
+    "torch.uint8": torch.uint8,
+    "i8": torch.uint8,
+}
+
+
+def normalize_dtype(dtype: str | torch.dtype) -> torch.dtype:
+    """Convert from a string torch dtype representation to actual torch.dtype.
+
+    examples:
+        input: "torch.float32", output: torch.float32
+        input: torch.float32, output: torch.float32 (no-op)
+        input: "fp16", output: torch.float16
+        input: "bf16", output: torch.bfloat16
+    """
+    if isinstance(dtype, torch.dtype):
+        return dtype
+    result: str | None = _DTYPE_ALIASES.get(dtype)
+    if result is None:
+        message = f"Invalid {dtype=}, valid options: {list(_DTYPE_ALIASES.keys())}"
+        raise ValueError(message)
+    return result
+
+
+# ----------- detach outputs and cleanup --------------------
+
 
 def to_cpu_detached(x: object) -> object:
     """Move tensors to CPU and detach them; preserve container structure.
