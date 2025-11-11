@@ -1032,11 +1032,13 @@ def _cache_export_model(
             raise ValueError(message)
         # Sanity check that dtypes match
         model_dtype = getattr(model, "dtype", None)
-        if model_dtype and (str(model_dtype) != signature_metadata["dtype"]):
+        submodule_dtypes = {p.dtype for _, p in (getattr(model, "named_parameters", list)())}
+        all_dtypes: set[Any] = {model_dtype} | submodule_dtypes
+        if signature_metadata["dtype"] not in all_dtypes:
             model_device = getattr(model, "device", None)
             message = (
                 f"Unexpected mismatch of signature dtype ({signature_metadata['dtype']}) "
-                f"and model dtype ({model_dtype}) for {signature_metadata['name']} on "
+                f"and model dtype(s) ({all_dtypes}) for {signature_metadata['name']} on "
                 f"device={model_device}"
             )
             raise ValueError(message)
