@@ -1036,6 +1036,74 @@ def _cache_apply_loader_overrides(
     return new_kwargs
 
 
+def _check_cache_load_against_expected(*, signature_metadata: dict[str, Any], model: object) -> None:
+    """Sanity check that dtypes loaded match expected from signature.
+
+    Note: some models used mixed precision and only some models are operated in half/quantized preciesion.
+    """
+    # Determine dtypes used in the actual model
+    model_dtype: torch.dtype = normalize_dtype(getattr(model, "dtype", None))
+    submodule_dtypes: set[torch.dtype] = {
+        normalize_dtype(p.dtype) for _, p in (getattr(model, "named_parameters", list)())
+    }
+    actual_dtypes: set[torch.dtype] = {model_dtype} | submodule_dtypes
+    # Check for imporpertly normalized types (e.g., string versions of torch.floatX)
+    if any(not isinstance(dtype, torch.dtype) for dtype in actual_dtypes):
+        message = (
+            f"Actual dtypes must be all of type torch.dtype, current types: {(type(dtype) for dtype in actual_dtypes)}"
+        )
+        raise TypeError(message)
+
+    # Determine expecte types
+    expected_dtype = normalize_dtype(signature_metadata["dtype"])
+    # Check for imporper normalization
+    if not isinstance(expected_dtype, torch.dtype):
+        message = f"Expected dtype must be of type torch.dtype, current type: {type(expected_dtype)}"
+        raise TypeError(message)
+
+    # Now check that actual matches expected
+    if expected_dtype not in actual_dtypes:
+        model_device = getattr(model, "device", None)
+        message = (
+            f"Unexpected mismatch of dtypes, expected dtype from signature ({expected_dtype}) "
+            f"not in actual used model/submodel dtypes ({actual_dtypes}) on {model_device=}"
+        )
+        raise ValueError(message)
+
+
+def _calc_cache_export_metadata(
+    signature_metadata: dict[str, Any],
+    signature: str,
+    model: object,
+) -> dict[str, Any]:
+    # Get time
+    now = datetime.now().astimezone()
+    created_at = now.isoformat(timespec="seconds")
+    created_at_pretty = now.strftime("%a, %b %d, %Y %I:%M %p %Z (%z)")
+    created_at_unix = int(now.timestamp())
+    # Get module, model_class, base module
+    module = getattr(model.__class__, "__module__", "None")
+    model_class = getattr(model.__class__, "__name__", "None")
+    base_module = module.split(".")[0]
+    base_module_version = getattr(importlib.import_module(base_module), "__version__", "None")
+    torch_version = getattr(torch, "__version__", "None")
+    # Write to *export* cache, being sure to (1) use variant, (2) to also pass expected_metadata
+    # Note: dtype, variant and name all in signature_metadata
+    metadata = signature_metadata | {
+        "signature": signature,
+        "module": module,
+        "model_class": model_class,
+        "base_module": base_module,
+        "base_module_version": base_module_version,
+        "torch_version": torch_version,
+        "created_at": created_at,
+        "created_at_pretty": created_at_pretty,
+        "created_at_unix": created_at_unix,
+    }
+    logger.trace(f"Model {type(model).__name__} metadata={_metadata_hash_shortener(metadata)}")
+    return metadata
+
+
 def _cache_export_model(
     *,
     model: object,
@@ -1045,7 +1113,11 @@ def _cache_export_model(
     match: bool,
     force_export_refresh: bool,
 ) -> None:
-    """Export the model to local export, if applicable."""
+    """Export the model to local export, if applicable.
+
+    Note: no variants used it is only supported by diffusers and the name
+    used for the export includes all variant information (including quantization)
+    """
     logger.trace(
         f"Exporting model with: model={type(model).__name__}, {export_dir=}, {match=}, {force_export_refresh=}",
     )
@@ -1066,57 +1138,13 @@ def _cache_export_model(
         if not signature_metadata or not signature:
             message = "Cannot export without signature metadata and signature"
             raise ValueError(message)
-        # Sanity check that dtypes match
-        model_dtype: torch.dtype = normalize_dtype(getattr(model, "dtype", None))
-        submodule_dtypes: set[torch.dtype] = {
-            normalize_dtype(p.dtype) for _, p in (getattr(model, "named_parameters", list)())
-        }
-        all_dtypes: set[torch.dtype] = {model_dtype} | submodule_dtypes
-        if normalize_dtype(signature_metadata["dtype"]) not in all_dtypes:
-            model_device = getattr(model, "device", None)
-            message = (
-                f"Unexpected mismatch of signature dtype ({signature_metadata['dtype']}) "
-                f"and model dtype(s) ({all_dtypes}) for {signature_metadata['name']} on "
-                f"device={model_device}"
-            )
-            raise ValueError(message)
+        _check_cache_load_against_expected(signature_metadata=signature_metadata, model=model)
+        metadata = _calc_cache_export_metadata(signature_metadata=signature_metadata, signature=signature, model=model)
 
-        # Get time
-        now = datetime.now().astimezone()
-        created_at = now.isoformat(timespec="seconds")
-        created_at_pretty = now.strftime("%a, %b %d, %Y %I:%M %p %Z (%z)")
-        created_at_unix = int(now.timestamp())
-        # Get module, model_class, base module
-        module = getattr(model.__class__, "__module__", "None")
-        model_class = getattr(model.__class__, "__name__", "None")
-        base_module = module.split(".")[0]
-        base_module_version = getattr(importlib.import_module(base_module), "__version__", "None")
-        torch_version = getattr(torch, "__version__", "None")
-        # Write to *export* cache, being sure to (1) use variant, (2) to also pass expected_metadata
-        # Note: dtype, variant and name all in signature_metadata
-        metadata = signature_metadata | {
-            "signature": signature,
-            "module": module,
-            "model_class": model_class,
-            "base_module": base_module,
-            "base_module_version": base_module_version,
-            "torch_version": torch_version,
-            "created_at": created_at,
-            "created_at_pretty": created_at_pretty,
-            "created_at_unix": created_at_unix,
-        }
-        logger.trace(f"Model {type(model).__name__} metadata={_metadata_hash_shortener(metadata)}")
         # Add variant if appropriate
         save_kwargs: dict[str, Any] = {
             "safe_serialization": True,  # Always use safetensors
         }
-        # Put variant as save kwarg, but only if in metatada and diffusers
-        # (transformers does not support variant)
-        if (base_module == "diffusers") and ("variant" in metadata):
-            save_kwargs = {"variant": metadata["variant"]}
-            logger.trace(f"Adding {save_kwargs['variant']=} to save_pretrained")
-        else:
-            logger.trace("Skipping variant in save_kwargs argument to save_pretrained")
         # Now ensure directory exists and is empty
         if export_dir.exists():
             shutil.rmtree(export_dir)
