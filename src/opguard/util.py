@@ -1485,7 +1485,7 @@ def quant_guard(
     elif base_module == "transformers":
         config_obj_type = TransformersBitsAndBytesConfig
     else:
-        message = f"Invalid {base_module=}, cannot determine if transformers or diffusers"
+        message = f"Invalid base_module for {module=}, cannot determine if transformers or diffusers"
         raise ValueError(message)
     quant_config = config_obj_type(
         load_in_8bit=load_in_8bit,
