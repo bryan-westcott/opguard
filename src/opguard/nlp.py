@@ -3,6 +3,8 @@
 # We do not care about LSP substitutability, OpGuardBase is not used directly
 # mypy: disable-error-code=override
 
+# ruff: noqa: N801  # need to specify variants of nubmered models (Blip2_XBit)
+
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
@@ -58,19 +60,16 @@ class Blip1(Blip):
 class Blip2(Blip):
     """Blip2 captioner with optional conditional text prompt.
 
-    Note: this is quantized to fit on under 4GB VRAM
+    Various precisions supported (in order of decreasing VRAM):     Blip2_32bit,
+    Blip2_16bit, Blip2_8bit, Blip2_4bit
     """
 
-    NAME = "blip2-conditional"
     MODEL_ID = "Salesforce/blip2-opt-2.7b"
     REVISION = "main"
     DETECTOR_TYPE = Blip2ForConditionalGeneration
-    DTYPE_PREFERENCE = torch.bfloat16  # when using 8-bit bnb, must use float16 not bfloat16
     DEFAULT_DEVICE_MAP = "auto"
     SKIP_TO_DEVICE = True
     SKIP_TO_DTYPE = True
-    DEFAULT_QUANT_TYPE = "nf4"
-    DEFAULT_QUANT_USE_DOUBLE: bool = True
 
     def _load_processor(self) -> Blip2Processor:
         return Blip2Processor.from_pretrained(
@@ -79,3 +78,40 @@ class Blip2(Blip):
             use_fast=True,
             device_map=self.device_map,
         )
+
+
+class Blip2_32Bit(Blip2):
+    """Blip2 captioner in full-precision float32 compute (~14GB).
+
+    WARNING: full precision (float32), for less VRAM use:
+         Blip2_16bit, Blip2_8bit, Blip2_4bit
+
+    Weights size (in storage): 14 GB
+    """
+
+    NAME = "blip2-conditional-32bit"
+    DTYPE_PREFERENCE = torch.float32
+
+
+class Blip2_16Bit(Blip2):
+    """Blip2 captioner in half-precision float16 compute (~7GB)."""
+
+    NAME = "blip2-conditional-16bit"
+    DTYPE_PREFERENCE = torch.bfloat16
+
+
+class Blip2_8Bit(Blip2):
+    """Blip2 captioner with 8-bit quantization."""
+
+    NAME = "blip2-conditional-8bit"
+    DTYPE_PREFERENCE = torch.bfloat16
+    DEFAULT_QUANT_TYPE = "i8"
+
+
+class Blip2_4Bit(Blip2):
+    """Blip2 captioner with 4-bit quantization (under 4GB VRAM)."""
+
+    NAME = "blip2-conditional-4bit"
+    DTYPE_PREFERENCE = torch.bfloat16  # when using 8-bit bnb, must use float16 not bfloat16
+    DEFAULT_QUANT_TYPE = "nf4"
+    DEFAULT_QUANT_USE_DOUBLE: bool = True
