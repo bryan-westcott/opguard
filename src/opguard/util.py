@@ -1493,7 +1493,6 @@ def quant_guard(
         bnb_4bit_compute_dtype=bnb_4bit_compute_dtype,
         bnb_4bit_quant_type=bnb_4bit_quant_type,
         bnb_4bit_use_double_quant=bnb_4bit_use_double_quant,
-        llm_int8_has_fp16_weight=compute_dtype in (torch.float16, torch.bfloat16),
     )
     logger.trace(f"Setting {quant_config=}")
     return quant_config
