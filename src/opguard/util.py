@@ -272,15 +272,19 @@ def device_supports_bfloat16(device: DeviceLike) -> bool:
 # ----------- detach outputs and cleanup --------------------
 
 _DTYPE_ALIASES: dict[str, torch.dtype] = {
+    # Full precision
     "float32": torch.float32,
     "torch.float32": torch.float32,
     "fp32": torch.float32,
+    # Half precision
     "float16": torch.float16,
     "torch.float16": torch.float16,
     "fp16": torch.float16,
+    # Bfloat Half precision
     "bfloat16": torch.bfloat16,
-    "torch.bfloat16": torch.float16,
-    "bf16": torch.float16,
+    "torch.bfloat16": torch.bfloat16,
+    "bf16": torch.bfloat16,
+    # For quantization
     "uint8": torch.uint8,
     "torch.uint8": torch.uint8,
     "i8": torch.uint8,
