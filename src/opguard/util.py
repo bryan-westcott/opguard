@@ -1502,19 +1502,26 @@ def quant_guard(
     if quant_type not in SUPPORTED_QUANT_TYPES:
         message = f"Requested {quant_type=} not in {SUPPORTED_QUANT_TYPES}"
         raise ValueError(message)
-    load_in_8bit = quant_type in SUPPORTED_QUANT_TYPES_8BIT
-    load_in_4bit = quant_type in SUPPORTED_QUANT_TYPES_4BIT
-    if load_in_8bit and quant_use_double:
+
+    # quant config params (to provide to *BitsAndBytesConfig)
+    config_input: dict[str, Any] = {}
+    config_input["load_in_8bit"] = quant_type in SUPPORTED_QUANT_TYPES_8BIT
+    config_input["load_in_4bit"] = quant_type in SUPPORTED_QUANT_TYPES_4BIT
+
+    if config_input["load_in_8bit"] and quant_use_double:
         message = f"Selected 8-bit type ({quant_type}) cannot set {quant_use_double=}, must be 4-bit"
         raise ValueError(message)
-    bnb_4bit_compute_dtype = compute_dtype
-    bnb_4bit_quant_type = quant_type if load_in_4bit else ""
-    bnb_4bit_use_double_quant = quant_use_double if load_in_4bit else False
+    if config_input["load_in_4bit"]:
+        config_input["bnb_4bit_compute_dtype"] = compute_dtype
+        config_input["bnb_4bit_quant_type"] = quant_type
+        config_input["bnb_4bit_use_double_quant"] = quant_use_double
 
     # check backend
     if backend != "bnb":
         message = f"Only 'bnb' quantization backedn supported, provided {backend=}"
         raise ValueError(message)
+    config_input["backend"] = backend
+
     # check if transformers or diffusers
     module = getattr(model_type, "__module__", "None")
     base_module = module.split(".")[0]
@@ -1525,13 +1532,8 @@ def quant_guard(
     else:
         message = f"Invalid base_module for {module=}, cannot determine if transformers or diffusers"
         raise ValueError(message)
-    quant_config = config_obj_type(
-        load_in_8bit=load_in_8bit,
-        load_in_4bit=load_in_4bit,
-        bnb_4bit_compute_dtype=bnb_4bit_compute_dtype,
-        bnb_4bit_quant_type=bnb_4bit_quant_type,
-        bnb_4bit_use_double_quant=bnb_4bit_use_double_quant,
-    )
+
+    quant_config = config_obj_type(**config_input)
     logger.trace(f"Setting {quant_config=}")
     return quant_config
 
