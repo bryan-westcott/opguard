@@ -56,18 +56,21 @@ class Blip1(Blip):
 
 
 class Blip2(Blip):
-    """Blip2 captioner with optional conditional text prompt."""
+    """Blip2 captioner with optional conditional text prompt.
+
+    Note: this is quantized to fit on under 4GB VRAM
+    """
 
     NAME = "blip2-conditional"
     MODEL_ID = "Salesforce/blip2-opt-2.7b"
     REVISION = "main"
     DETECTOR_TYPE = Blip2ForConditionalGeneration
-    DTYPE_PREFERENCE = torch.float16  # when using 8-bit bnb, must use float16 not bfloat16
+    DTYPE_PREFERENCE = torch.bfloat16  # when using 8-bit bnb, must use float16 not bfloat16
     DEFAULT_DEVICE_MAP = "auto"
     SKIP_TO_DEVICE = True
     SKIP_TO_DTYPE = True
-    DEFAULT_QUANT_TYPE = "i8"
-    FROM_PRETRAINED_SKIP_KWARGS = ("quantization_config",)  # use individual components
+    DEFAULT_QUANT_TYPE = "nf4"
+    DEFAULT_QUANT_USE_DOUBLE: bool = True
 
     def _load_processor(self) -> Blip2Processor:
         return Blip2Processor.from_pretrained(
@@ -75,9 +78,4 @@ class Blip2(Blip):
             revision=self.REVISION,
             use_fast=True,
             device_map=self.device_map,
-        )
-
-    def _load_detector(self) -> Blip2ForConditionalGeneration:
-        return super()._load_detector(
-            load_in_8bit=getattr(self.quant_config, "load_in_8bit", False),  # pair with FROM_PRETRAINED_SKIP_KWARGS
         )
