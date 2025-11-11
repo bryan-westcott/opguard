@@ -1067,10 +1067,12 @@ def _cache_export_model(
             message = "Cannot export without signature metadata and signature"
             raise ValueError(message)
         # Sanity check that dtypes match
-        model_dtype = getattr(model, "dtype", None)
-        submodule_dtypes = {p.dtype for _, p in (getattr(model, "named_parameters", list)())}
-        all_dtypes: set[Any] = {model_dtype} | submodule_dtypes
-        if signature_metadata["dtype"] not in all_dtypes:
+        model_dtype: torch.dtype = normalize_dtype(getattr(model, "dtype", None))
+        submodule_dtypes: set[torch.dtype] = {
+            normalize_dtype(p.dtype) for _, p in (getattr(model, "named_parameters", list)())
+        }
+        all_dtypes: set[torch.dtype] = {model_dtype} | submodule_dtypes
+        if normalize_dtype(signature_metadata["dtype"]) not in all_dtypes:
             model_device = getattr(model, "device", None)
             message = (
                 f"Unexpected mismatch of signature dtype ({signature_metadata['dtype']}) "
