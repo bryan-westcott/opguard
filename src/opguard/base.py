@@ -535,6 +535,9 @@ class OpGuardBase(ABC):
                 only_load_export=self.only_load_export,
                 force_export_refresh=self.force_export_refresh,
                 use_safetensors=self.USE_SAFETENSORS,
+                sanitize_all_exceptions=self.sanitize_all_exceptions,
+                detach_outputs=self.detach_outputs,
+                device_list=self.device_list,
             )
         logger.debug(
             f"Loaded detector for {self.model_id}: {type(self._detector)}, "

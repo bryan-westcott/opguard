@@ -2127,15 +2127,28 @@ def load_guard(
     only_load_export: bool = False,
     force_export_refresh: bool = False,
     use_safetensors: bool = True,
+    device_list: list[torch.device],
+    sanitize_all_exceptions: bool = True,
+    detach_outputs: bool = True,
 ) -> object:
-    """Aggregate context manager for model load: local_guard, eval_guard, cache_guard."""
+    """Aggregate context manager for model load.
+
+    Aggreages:
+        local_guard, eval_guard, vram_gurad (for loader), and cache_guard.
+    """
     with (
         # extra protection for local files
         local_guard(local_files_only=local_files_only) as _local_files_only,
-        eval_guard(models_or_loader=loader_fn, train_mode=train_mode) as guarded_loader_fn,
+        eval_guard(models_or_loader=loader_fn, train_mode=train_mode) as loader_fn__eval_guarded,
+        vram_guard(
+            device_list=device_list,
+            detach_outputs=detach_outputs,
+            sanitize_all_exceptions=sanitize_all_exceptions,
+            caller_fn=loader_fn__eval_guarded,
+        ) as loader_fn__eval_guarded__vram_guarded,
     ):
         return cache_guard(
-            loader_fn=guarded_loader_fn,
+            loader_fn=loader_fn__eval_guarded__vram_guarded,
             loader_kwargs=loader_kwargs,
             base_export_name=base_export_name,
             only_load_export=only_load_export,
@@ -2159,7 +2172,7 @@ def call_guard(
 ) -> Generator[Callable, None, None]:
     """Aggregate context manager for inference.
 
-    Includes: eval_guard, grad_guard, autocast_guard, vram_guard
+    Includes: eval_guard, grad_guard, autocast_guard, vram_guard (for call)
     """
     logger.trace(
         f"Guarding call with {need_grads=}, {sanitize_all_exceptions=}, "
