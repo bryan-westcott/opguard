@@ -276,7 +276,7 @@ class OpGuardBase(ABC):
 
         # Load model with basic arguments and additional kwargs
         logger.debug(
-            f"Loading {self.DETECTOR_TYPE} with model_id={self.model_id}, "
+            f"Loading {self.DETECTOR_TYPE} with model_id='{self.model_id}', "
             f"kwargs={self.short_print_models(from_pretrained_kwargs)}",
         )
         model = self.DETECTOR_TYPE.from_pretrained(self.model_id, **from_pretrained_kwargs)

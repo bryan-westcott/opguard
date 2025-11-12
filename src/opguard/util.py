@@ -171,7 +171,7 @@ def detach_exception_tracebacks(exc: BaseException, *, deep: bool = True) -> Non
         if ctx is not exc:
             detach_exception_tracebacks(ctx, deep=True)
 
-    # Then from context
+    # Then from cause
     cause: BaseException | None = getattr(exc, "__cause__", None)
     if cause is not None:
         with suppress(Exception):
@@ -851,7 +851,8 @@ def _cache_calc_expected_metadata_and_signature(
     dtype: torch.dtype,
     export_variant: str | None,
 ) -> tuple[str, dict[str, Any]]:
-    """Compute expected signature and associated metadata based on loader, name and arguments.
+    """Compute expected signature and associated metadata based on loader, name and
+    arguments.
 
     The metadata used to compute the hash includes:
         export name, loader function fingerprint, loader call hash, model id,
@@ -2026,7 +2027,7 @@ def vram_guard(
         logger.trace("Exception inside vram_guard guarded execution")
         if sanitize_all_exceptions:
             # Log full traceback
-            logger.exception("Guarded region failed")
+            logger.exception("VRAM Guarded region failed")
             # avoid references in traceback tying up RAM/VRAM
             detach_exception_tracebacks(e, deep=True)
             # re-raise sanitized exception
