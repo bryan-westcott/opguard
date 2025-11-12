@@ -851,8 +851,7 @@ def _cache_calc_expected_metadata_and_signature(
     dtype: torch.dtype,
     export_variant: str | None,
 ) -> tuple[str, dict[str, Any]]:
-    """Compute expected signature and associated metadata based on loader, name and
-    arguments.
+    """Calc expected signature and associated metadata from loader, name and arguments.
 
     The metadata used to compute the hash includes:
         export name, loader function fingerprint, loader call hash, model id,
