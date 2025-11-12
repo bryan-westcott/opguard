@@ -338,6 +338,7 @@ class OpGuardBase(ABC):
         quant_use_double_override: bool = False,
         keep_warm: bool = False,
         sanitize_all_exceptions: bool = True,
+        detach_outputs: bool = True,
         local_hfhub_variant_check_only: bool = False,
         local_files_only: bool = False,
         only_load_export: bool = False,
@@ -373,6 +374,9 @@ class OpGuardBase(ABC):
                 If Ture, any exceptions during guarded calls are
                 sanitized (tracebacks detached, cuda devices synchronized, concise
                 error re-raised).
+            detach_outputs:
+                If True, will detach all outputs on exceptions to avoid tying
+                up vram
             local_hfhub_variant_check_only:
                 only look local cache when checking hfhub for variants
             local_files_only:
@@ -418,6 +422,7 @@ class OpGuardBase(ABC):
         # caller related ptions
         self.keep_warm: bool = keep_warm
         self.sanitize_all_exceptions: bool = True
+        self.detach_outputs: bool = True
 
         # initialize dtype, variant, device_list based on runtime hardware
         self.device_list, self.device, self.dtype, self.variant, self.device_map, self.quant_config = init_guard(
@@ -604,6 +609,7 @@ class OpGuardBase(ABC):
             with call_guard(
                 need_grads=self.NEED_GRADS,
                 sanitize_all_exceptions=self.sanitize_all_exceptions,
+                detach_outputs=self.detach_outputs,
                 caller_fn=self._caller,
                 effective_dtype=self.dtype,
                 device_list=self.device_list,
