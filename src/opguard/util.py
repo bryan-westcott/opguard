@@ -750,14 +750,14 @@ def _hash_canonical(obj: dict[str, Any]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _cache_location_info(
+def _cache_calc_export_name(
     *,
     base_export_name: str | None,
     dtype: torch.dtype,
     quant_config: QuantConfigLike | None,
     exports_subdir: str = "exports",
 ) -> tuple[str | None, str | None, Path | None]:
-    """Get export name,  variant and dir based on base_export_name and dtype.
+    """Get export name, variant and dir based on base_export_name and dtype.
 
     Notes:
     * Even though diffusers only supports variant in from_pretrained, we
@@ -841,7 +841,7 @@ def _metadata_hash_shortener(metadata: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _cache_signature(
+def _cache_calc_expected_metadata_and_signature(
     *,
     export_name: str | None,
     loader_fn: Callable[..., Any],
@@ -850,12 +850,14 @@ def _cache_signature(
     device: torch.device,
     dtype: torch.dtype,
     export_variant: str | None,
-) -> tuple[str | None, dict[str, Any] | None]:
-    """Compute signature and associated metadata based on laoder, name and arguments.
+) -> tuple[str, dict[str, Any]]:
+    """Compute expected signature and associated metadata based on loader, name and arguments.
 
     The metadata used to compute the hash includes:
         export name, loader function fingerprint, loader call hash, model id,
         device, dtype, and variant.
+
+    Note: additional metadata (e.g., timestamps) are not used for matching
 
     The loader call accounts for args and kwargs, and is subsequently normalized
         for consistent hashing, then hashed.  Only the hashed loader call is used
@@ -867,14 +869,6 @@ def _cache_signature(
         signature_metadata - metadata used to compute the signature
                             (normalized loader_call is added back in for debugging)
     """
-    # Lack of export name prevents local export
-    if not export_name:
-        return None, None
-
-    if loader_fn is None:
-        message = "loader_fn must be provided as a callable"
-        raise ValueError(message)
-
     # Which kwargs are used to detect changes
     # Note: do not copy local_files_only, that may change in this gurad
     signature_kwargs = ("model_id", "device", "dtype", "variant")
@@ -889,7 +883,7 @@ def _cache_signature(
     loader_fingerprint: str = _loader_fingerprint(loader_fn)
 
     # construct signature
-    signature_metadata: dict[str, Any] = {
+    signature_metadata_expected: dict[str, Any] = {
         "name": export_name,
         "loader_fn_fingerprint": loader_fingerprint,
         "loader_call_hash": call_hash,
@@ -899,28 +893,28 @@ def _cache_signature(
         "variant": export_variant,
     }
     # compute signature hash based on metadata
-    signature = hashlib.sha256(
+    signature_expected = hashlib.sha256(
         json.dumps(
-            signature_metadata,
+            signature_metadata_expected,
             sort_keys=True,
             default=str,
         ).encode(),
     ).hexdigest()
     logger.trace(
-        f"Signature for {export_name}: metadata hash: {_hash_shortener(signature)}, "
-        f"metadata: {_metadata_hash_shortener(signature_metadata)}",
+        f"Signature for {export_name}: metadata hash: {_hash_shortener(signature_expected)}, "
+        f"metadata: {_metadata_hash_shortener(signature_metadata_expected)}",
     )
 
     # Put normalized call in for debugging, but match on signature
-    signature_metadata["loader_call"] = call_norm
+    signature_metadata_expected["loader_call"] = call_norm
 
-    return signature, signature_metadata
+    return signature_expected, signature_metadata_expected
 
 
-def _cache_match(
+def _cache_check_for_match(
     *,
     export_dir: Path | None,
-    signature_expected: str | None,
+    signature_expected: str,
     only_load_export: bool,
 ) -> bool:
     """Check for existing local export that matches expected signature."""
@@ -994,9 +988,9 @@ def _cache_get_loader_overrides(
             raise LocalEntryNotFoundError(message)
         # decision on whether to use local or remote files on refresh
         logger.trace(f"Leaving {model_id=} unchanged")
-        logger.trace(f"Overriding local_files_only to {local_files_only_on_refresh=}")
+        logger.trace(f"Override decision: local_files_only to be set to {local_files_only_on_refresh=}")
         overrides["local_files_only"] = local_files_only_on_refresh
-        logger.trace(f"Overriding use_safetensors to {use_safetensors=}")
+        logger.trace(f"Override decision: for use_safetensors to be set to {use_safetensors=}")
         overrides["use_safetensors"] = use_safetensors
     # work with a copy, then override
     logger.trace(f"Final cache overrides: {overrides=}")
@@ -1040,7 +1034,7 @@ def _cache_apply_loader_overrides(
     return new_kwargs
 
 
-def _check_cache_load_against_expected(*, signature_metadata: dict[str, Any], model: object) -> None:
+def _cache_check_load_against_expected(*, signature_metadata_expected: dict[str, Any], model: object) -> None:
     """Sanity check that dtypes loaded match expected from signature.
 
     Note: some models used mixed precision and only some models are operated in half/quantized preciesion.
@@ -1051,6 +1045,7 @@ def _check_cache_load_against_expected(*, signature_metadata: dict[str, Any], mo
         normalize_dtype(p.dtype) for _, p in (getattr(model, "named_parameters", list)())
     }
     actual_dtypes: set[torch.dtype] = {model_dtype} | submodule_dtypes
+    logger.trace(f"Loaded model dtypes for {signature_metadata_expected['name']}: {model_dtype=}, {submodule_dtypes=}")
     # Check for imporpertly normalized types (e.g., string versions of torch.floatX)
     if any(not isinstance(dtype, torch.dtype) for dtype in actual_dtypes):
         message = (
@@ -1059,7 +1054,10 @@ def _check_cache_load_against_expected(*, signature_metadata: dict[str, Any], mo
         raise TypeError(message)
 
     # Determine expecte types
-    expected_dtype = normalize_dtype(signature_metadata["dtype"])
+    expected_dtype = normalize_dtype(signature_metadata_expected["dtype"])
+    logger.trace(
+        f"Expected model dtypes for {signature_metadata_expected['name']}: {model_dtype=}, {submodule_dtypes=}",
+    )
     # Check for imporper normalization
     if not isinstance(expected_dtype, torch.dtype):
         message = f"Expected dtype must be of type torch.dtype, current type: {type(expected_dtype)}"
@@ -1073,13 +1071,15 @@ def _check_cache_load_against_expected(*, signature_metadata: dict[str, Any], mo
             f"not in actual used model/submodel dtypes ({actual_dtypes}) on {model_device=}"
         )
         raise ValueError(message)
+    logger.trace(f"Actual model dtypes {actual_dtypes} agree with expected {expected_dtype}")
 
 
-def _calc_cache_export_metadata(
-    signature_metadata: dict[str, Any],
-    signature: str,
+def _augment_cache_export_metadata(
+    signature_metadata_expected: dict[str, Any],
+    signature_expected: str,
     model: object,
 ) -> dict[str, Any]:
+    """Add additional metadata not used for matching (e.g., timestamps)."""
     # Get time
     now = datetime.now().astimezone()
     created_at = now.isoformat(timespec="seconds")
@@ -1093,8 +1093,8 @@ def _calc_cache_export_metadata(
     torch_version = getattr(torch, "__version__", "None")
     # Write to *export* cache, being sure to (1) use variant, (2) to also pass expected_metadata
     # Note: dtype, variant and name all in signature_metadata
-    metadata = signature_metadata | {
-        "signature": signature,
+    metadata = signature_metadata_expected | {
+        "signature": signature_expected,
         "module": module,
         "model_class": model_class,
         "base_module": base_module,
@@ -1111,8 +1111,8 @@ def _calc_cache_export_metadata(
 def _cache_export_model(
     *,
     model: object,
-    signature_metadata: dict[str, Any] | None,
-    signature: str | None,
+    signature_metadata_expected: dict[str, Any],
+    signature_expected: str,
     export_dir: Path | None,
     match: bool,
     force_export_refresh: bool,
@@ -1126,7 +1126,7 @@ def _cache_export_model(
         f"Exporting model with: model={type(model).__name__}, {export_dir=}, {match=}, {force_export_refresh=}",
     )
     if not export_dir:
-        logger.warning("Bypassing load_guard export due to no export_dir")
+        logger.warning("Bypassing cache_guard export due to no export_dir")
         if force_export_refresh:
             message = "Must provide export_name to use force_export_refresh==True"
             raise ValueError(message)
@@ -1134,17 +1134,19 @@ def _cache_export_model(
         if force_export_refresh:
             message = "Cannot export non huggingface model for force_export_refresh==True"
             raise ValueError(message)
-        logger.warning(f"Bypassing load_guard export due to no save_pretrained on {type(model).__name__}")
+        logger.warning(f"Bypassing cache_guard export due to no save_pretrained on {type(model).__name__}")
         return
 
     # No attempt to re-export it
     if export_dir and (not match or force_export_refresh):
-        if not signature_metadata or not signature:
-            message = "Cannot export without signature metadata and signature"
+        if not signature_metadata_expected or not signature_expected:
+            message = "Cannot export without signature metadata_expected and signature"
             raise ValueError(message)
-        _check_cache_load_against_expected(signature_metadata=signature_metadata, model=model)
-        metadata = _calc_cache_export_metadata(signature_metadata=signature_metadata, signature=signature, model=model)
-
+        metadata = _augment_cache_export_metadata(
+            signature_metadata_expected=signature_metadata_expected,
+            signature_expected=signature_expected,
+            model=model,
+        )
         # Add variant if appropriate
         save_kwargs: dict[str, Any] = {
             "safe_serialization": True,  # Always use safetensors
@@ -1862,13 +1864,13 @@ def cache_guard(
         logger.trace(f"No quantization requested based on {quant_config=}")
 
     # get variant and variant-specific export name
-    export_name, export_variant, export_dir = _cache_location_info(
+    export_name, export_variant, export_dir = _cache_calc_export_name(
         base_export_name=base_export_name,
         dtype=dtype,
         quant_config=quant_config,
     )
     # compute signature and associated metadata used to craete it
-    signature_expected, signature_metadata = _cache_signature(
+    signature_expected, signature_metadata_expected = _cache_calc_expected_metadata_and_signature(
         export_name=export_name,
         loader_fn=loader_fn,
         loader_kwargs=loader_kwargs,
@@ -1878,7 +1880,7 @@ def cache_guard(
         export_variant=export_variant,
     )
     # check for existing export
-    match = _cache_match(
+    match = _cache_check_for_match(
         export_dir=export_dir,
         signature_expected=signature_expected,
         only_load_export=only_load_export,
@@ -1902,11 +1904,13 @@ def cache_guard(
     )
     # Load the model with same loader either way
     model = loader_fn(**loader_kwargs)
+    # Verify loading was successful
+    _cache_check_load_against_expected(signature_metadata_expected=signature_metadata_expected, model=model)
     # Export the model, if applicable
     _cache_export_model(
         model=model,
-        signature_metadata=signature_metadata,
-        signature=signature_expected,
+        signature_metadata_expected=signature_metadata_expected,
+        signature_expected=signature_expected,
         export_dir=export_dir,
         match=match,
         force_export_refresh=force_export_refresh,
@@ -1974,7 +1978,7 @@ def vram_guard(
     *,
     device_list: list[torch.device],
     sanitize_all_exceptions: bool = True,
-    detach_outputs: bool = False,
+    detach_outputs: bool = True,
     caller_fn: Callable[..., object] | None = None,
 ) -> Iterator[Callable]:
     """Sync/sanitize/cleanup wrapper across all devices, where applicable.
