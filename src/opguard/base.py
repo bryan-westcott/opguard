@@ -440,8 +440,10 @@ class OpGuardBase(ABC):
         logger.debug(
             f"Choices for {self.NAME}: {self.dtype=}, {self.variant=}, "
             f"{self.device=}, {self.device_map=}, {self.device_list=}, "
-            f"{self.quant_config=}",
+            f"quant_config={'PROVIDED' if self.quant_config else 'NOT-PROVIDED'}",
         )
+        if self.quant_config:
+            logger.trace(f"{self.quant_config=}")
 
         # prepare detector now
         if self.keep_warm:
