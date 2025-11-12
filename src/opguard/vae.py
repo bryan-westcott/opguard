@@ -110,7 +110,7 @@ class VaeTinyForSd(AutoencoderTinyBase):
     MODEL_ID = "madebyollin/taesd"
     REVISION = "main"
     DEFAULT_DEVICE = "cuda"
-    DEFAULT_DTYPE = torch.float16
+    DEFAULT_DTYPE = torch.bfloat16
     DEFAULT_DEVICE_MAP = "cuda"  # will ignore for cpu
 
 
@@ -121,7 +121,7 @@ class VaeTinyForSdxl(AutoencoderTinyBase):
     MODEL_ID = "madebyollin/taesdxl"
     REVISION = "main"
     DEFAULT_DEVICE = "cuda"
-    DEFAULT_DTYPE = torch.float16
+    DEFAULT_DTYPE = torch.bfloat16
     DEFAULT_DEVICE_MAP = "cuda"  # will ignore for cpu
 
 
