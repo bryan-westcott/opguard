@@ -5,22 +5,38 @@
 
 # ruff: noqa: N801  # need to specify variants of nubmered models (Blip2_XBit)
 
+from typing import ClassVar
+
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from transformers import (
     Blip2ForConditionalGeneration,
-    Blip2Processor,
     BlipForConditionalGeneration,
     BlipProcessor,
 )
 from transformers.image_processing_base import BatchFeature
 
 from .base import OpGuardBase
+from .util import Detector
 
 
 class Blip(OpGuardBase):
     """BLIP1/2 captioner with optional conditional text prompt."""
+
+    # Placeholder for processor
+    PROCESSOR_TYPE: ClassVar[type[Detector] | None] = None
+
+    def _load_processor(self) -> BlipProcessor:
+        if not self.PROCESSOR_TYPE:
+            message = "Must set PROCSSOR_TYPE Class Var"
+            raise ValueError(message)
+        return self.PROCESSOR_TYPE.from_pretrained(
+            self.model_id,
+            revision=self.REVISION,
+            use_fast=True,
+            device_map=self.device_map,
+        )
 
     def _preprocess(self, *, input_raw: PILImage, text: str | None = None) -> BatchFeature:
         return self._processor(input_raw, text=text, return_tensors="pt").to(
@@ -48,14 +64,6 @@ class Blip1(Blip):
     REVISION = "main"
     DETECTOR_TYPE = BlipForConditionalGeneration
 
-    def _load_processor(self) -> BlipProcessor:
-        return BlipProcessor.from_pretrained(
-            self.model_id,
-            revision=self.REVISION,
-            use_fast=True,
-            device_map=self.device_map,
-        )
-
 
 class Blip2(Blip):
     """Blip2 captioner with optional conditional text prompt.
@@ -70,14 +78,6 @@ class Blip2(Blip):
     DEFAULT_DEVICE_MAP = "auto"
     SKIP_TO_DEVICE = True
     SKIP_TO_DTYPE = True
-
-    def _load_processor(self) -> Blip2Processor:
-        return Blip2Processor.from_pretrained(
-            self.model_id,
-            revision=self.REVISION,
-            use_fast=True,
-            device_map=self.device_map,
-        )
 
 
 class Blip2_32Bit(Blip2):
