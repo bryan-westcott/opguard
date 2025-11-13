@@ -12,6 +12,7 @@ from PIL.Image import Image as PILImage
 from torch import Tensor
 from transformers import (
     Blip2ForConditionalGeneration,
+    Blip2Processor,
     BlipForConditionalGeneration,
     BlipProcessor,
 )
@@ -63,6 +64,7 @@ class Blip1(Blip):
     MODEL_ID = "Salesforce/blip-image-captioning-base"
     REVISION = "main"
     DETECTOR_TYPE = BlipForConditionalGeneration
+    PROCESSOR_TYPE = BlipProcessor
 
 
 class Blip2(Blip):
@@ -78,6 +80,7 @@ class Blip2(Blip):
     DEFAULT_DEVICE_MAP = "auto"
     SKIP_TO_DEVICE = True
     SKIP_TO_DTYPE = True
+    PROCESSOR_TYPE = Blip2Processor
 
 
 class Blip2_32Bit(Blip2):
