@@ -42,6 +42,9 @@ Aggregate context managers - used individually in classes (see OpGuardBase)
     - local_guard: ensure use of huggingface_hub is in local files only mode.
     - eval_guard: recursively set .eval() or .train() mode on all models provided.
     - cache_guard: cache previously prepared and cast models locally
+    - vram_guard: Prevent VRAM (or RAM) from getting pinned by stale tensors:
+                sync streams, detach/move outputs off-GPU as needed, run GC,
+                and torch.cuda.empty_cache(); coalesce/surface errors deterministically.
 - call_guard: for calling the model (inference), components:
     - eval_guard: recursively set .eval() or .train() mode on all models provided.
     - grad_guard: toggle torch.set_grad_enabled / torch.inference_mode.
