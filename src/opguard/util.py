@@ -1044,9 +1044,13 @@ def _cache_check_load_against_expected(*, signature_metadata_expected: dict[str,
     """
     # Determine dtypes used in the actual model
     model_dtype: torch.dtype = normalize_dtype(getattr(model, "dtype", None))
+    # Valid for torch NN models
     submodule_dtypes: set[torch.dtype] = {
         normalize_dtype(p.dtype) for _, p in (getattr(model, "named_parameters", list)())
     }
+    # Valid for diffusers/transformers
+    submodule_dtypes |= {value.dtype for name, value in vars(model).items() if hasattr(value, "dtype")}
+
     actual_dtypes: set[torch.dtype] = {model_dtype} | submodule_dtypes
     logger.trace(f"Loaded model dtypes for {signature_metadata_expected['name']}: {model_dtype=}, {submodule_dtypes=}")
     # Check for imporpertly normalized types (e.g., string versions of torch.floatX)
