@@ -249,6 +249,9 @@ class OpGuardBase(ABC):
             from_pretrained_kwargs["device_map"] = self.device_map
         if self.quant_config:
             from_pretrained_kwargs["quantization_config"] = self.quant_config
+        # Conditionally add device and torch_dtype
+        if self.SKIP_TO_DEVICE and ("device_map" not in from_pretrained_kwargs) and self.device:
+            from_pretrained_kwargs["device"] = self.device
         # Filter out those skipped
         if not isinstance(self.FROM_PRETRAINED_SKIP_KWARGS, tuple):
             message = (
