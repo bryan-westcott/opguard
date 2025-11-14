@@ -111,6 +111,22 @@ with TinyVAE() as vae:
 
 ---
 
+### ⚖️ Running on Google Colab
+
+If `!pip freeze | grep torch` shows `torch==2.8.0+cu126`:
+
+* `!pip3 install --no-deps xformers --index-url https://download.pytorch.org/whl/cu126`
+
+Then, install `opguard` from git:
+
+* `!pip install "opguard[test] @ git+https://bryan-westcott@github.com/bryan-westcott/opguard.git@main"`
+
+Finally, run smoke tests:
+
+* `from opguard.tests.test import smoke; smoke()`
+
+
+
 ### ⚖️ License & attribution
 
 Apache 2.0
