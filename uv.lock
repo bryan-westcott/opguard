@@ -1585,11 +1585,8 @@ source = { editable = "." }
 dependencies = [
     { name = "accelerate" },
     { name = "bitsandbytes" },
-    { name = "controlnet-aux" },
     { name = "diffusers" },
-    { name = "easy-dwpose" },
     { name = "huggingface-hub" },
-    { name = "instantstyle-plus" },
     { name = "loguru" },
     { name = "numpy" },
     { name = "pillow" },
@@ -1599,8 +1596,20 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+controlnet = [
+    { name = "controlnet-aux" },
+]
+easydwpose = [
+    { name = "easy-dwpose" },
+]
+inversion = [
+    { name = "instantstyle-plus" },
+]
 test = [
+    { name = "controlnet-aux" },
+    { name = "easy-dwpose" },
     { name = "hypothesis" },
+    { name = "instantstyle-plus" },
     { name = "pytest" },
     { name = "pytest-codeblocks" },
     { name = "pytest-cov" },
@@ -1630,12 +1639,15 @@ tooling = [
 requires-dist = [
     { name = "accelerate", specifier = ">=1.7.0" },
     { name = "bitsandbytes", specifier = ">=0.46.0" },
-    { name = "controlnet-aux", specifier = ">=0.0.10" },
+    { name = "controlnet-aux", marker = "extra == 'controlnet'", specifier = ">=0.0.10" },
+    { name = "controlnet-aux", marker = "extra == 'test'", specifier = ">=0.0.10" },
     { name = "diffusers", specifier = ">=0.33.1" },
-    { name = "easy-dwpose", git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?tag=v1.0.2.post4" },
+    { name = "easy-dwpose", marker = "extra == 'easydwpose'", git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?tag=v1.0.2.post4" },
+    { name = "easy-dwpose", marker = "extra == 'test'", git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?tag=v1.0.2.post4" },
     { name = "huggingface-hub", specifier = ">=0.24.6" },
     { name = "hypothesis", marker = "extra == 'test'" },
-    { name = "instantstyle-plus", git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git?tag=v0.1.0" },
+    { name = "instantstyle-plus", marker = "extra == 'inversion'", git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git?tag=v0.1.0" },
+    { name = "instantstyle-plus", marker = "extra == 'test'", git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git?tag=v0.1.0" },
     { name = "loguru" },
     { name = "numpy", specifier = ">=1.26.4,<3" },
     { name = "pillow", specifier = ">=11.1.0" },
@@ -1651,7 +1663,7 @@ requires-dist = [
     { name = "xdoctest", marker = "extra == 'test'", specifier = ">=1.2.0" },
     { name = "xformers", specifier = ">=0.0.29.post3" },
 ]
-provides-extras = ["test"]
+provides-extras = ["controlnet", "easydwpose", "inversion", "test"]
 
 [package.metadata.requires-dev]
 notebook = [

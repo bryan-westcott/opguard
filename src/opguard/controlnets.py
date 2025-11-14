@@ -10,15 +10,27 @@ import torch
 
 # The root __init__.py in controlnet_aux is suppressed in opguard.__int__.py since most detectors not needed
 # which causes noisy warnings but also unnecessarily adds computation time
-from controlnet_aux.hed import HEDdetector  # Import only from .hed, do not import from base module
 from diffusers import ControlNetModel, MarigoldDepthPipeline, MarigoldNormalsPipeline
 from diffusers import ControlNetModel as ControlNetModel_Union
 from diffusers.pipelines.marigold.pipeline_marigold_depth import MarigoldDepthOutput
 from diffusers.pipelines.marigold.pipeline_marigold_normals import MarigoldNormalsOutput
-from easy_dwpose import DWposeDetector
 from PIL.Image import Image as PILImage
 
 from .base import DetectorFactory, OpGuardBase
+
+try:
+    # This requires controlnet-aux which can cause conflicts,
+    # so fail gracefully (and message) if not installed
+    from controlnet_aux.hed import HEDdetector as _HEDdetector
+except ImportError:
+    _HEDdetector = None  # type: ignore[assignment]
+
+try:
+    # This requires onnx which can cause conflicts
+    # so fail gracefully (and message) if not installed
+    from easy_dwpose import DWposeDetector as _DWposeDetector
+except ImportError:
+    _DWposeDetector = None  # type: ignore[assignment]
 
 
 class ControlnetBase(OpGuardBase):
@@ -62,13 +74,23 @@ class HedDetector(OpGuardBase):
     MODEL_ID = "lllyasviel/Annotators"
     REVISION = "main"
     # Will fail on bfloat16 due to use of numpy detach
-    DETECTOR_TYPE = HEDdetector
     FROM_PRETRAINED_SKIP_KWARGS = ("variant", "use_safetensors", "revision", "torch_dtype", "device", "device_map")
     ACCEPTS_TO_KWARGS = False
     # This model does not accept dtype as a .to() arg or kwarg and it
     # is lightweight enough that it should run in full (32-bit) precision
     SKIP_TO_DTYPE = True  # This model
     DTYPE_PREFERENCE = torch.float32
+
+    @property
+    def DETECTOR_TYPE(self) -> DetectorFactory:  # noqa: N802  (mirrors base class)
+        """Defined after deferred import in __init__."""
+        if _HEDdetector is None:
+            message = (
+                "HedDetector requires the optional dependency 'controlnet-aux', "
+                "Install with: pip install opguard[controlnetaux]",
+            )
+            raise RuntimeError(message)
+        return cast("DetectorFactory", _HEDdetector)
 
 
 class MarigoldDepthDetector(OpGuardBase):
@@ -148,7 +170,17 @@ class DwposeDetector(OpGuardBase):
     NAME = "dwpose-detector"
     MODEL_ID = "RedHash/DWPose"
     REVISION = "main"
-    DETECTOR_TYPE = DWposeDetector
+
+    @property
+    def DETECTOR_TYPE(self) -> DetectorFactory:  # noqa: N802  (mirrors base class)
+        """Handle module not installed."""
+        if _DWposeDetector is None:
+            message = (
+                "DWposeDetector requires the optional dependency 'easy-dwpose'. "
+                "Install with: pip install opguard[easydwpose]"
+            )
+            raise RuntimeError(message)
+        return cast("DetectorFactory", _DWposeDetector)
 
     # Note: only device supported as a kwarg, and no positional model_id
     # This has an atypical signature, so load manually

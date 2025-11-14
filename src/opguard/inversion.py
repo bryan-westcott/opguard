@@ -6,22 +6,33 @@
 # mypy: disable-error-code=override
 
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import torch
 from diffusers import DDIMScheduler, StableDiffusionXLPipeline
 from diffusers.pipelines.stable_diffusion_xl.pipeline_output import StableDiffusionXLPipelineOutput
-from instantstyle_plus.config import RunConfig
-from instantstyle_plus.eunms import Model_Type, Scheduler_Type
-from instantstyle_plus.inversion import run as isp_inversion
-from instantstyle_plus.pipes.sdxl_inversion_pipeline import SDXLDDIMPipeline
-from instantstyle_plus.utils.enums_utils import get_pipes
 from PIL.Image import Image as PILImage
 from torch import Tensor
 
 from .base import OpGuardBase
 from .nlp import Blip1
+from .util import DetectorFactory
 from .vae import VaeSdxlFp16Fix
+
+try:
+    # This is a specialized module used just for this special purpose,
+    # so fail gracefully and message if not installed
+    from instantstyle_plus.config import RunConfig
+    from instantstyle_plus.eunms import Model_Type, Scheduler_Type
+    from instantstyle_plus.inversion import run as isp_inversion
+    from instantstyle_plus.pipes.sdxl_inversion_pipeline import SDXLDDIMPipeline as _SDXLDIMPipeline
+    from instantstyle_plus.utils.enums_utils import get_pipes
+except ImportError:
+    _SDXLDIMPipeline = None  # type: ignore[assignment]
+    RunConfig = None  # type: ignore[assignment]
+    Model_Type, Scheduler_Type = None, None  # type: ignore[assignment]
+    isp_inversion = None  # type: ignore[assignment]
+    get_pipes = None  # type: ignore[assignment]
 
 
 class InversionSdxl(OpGuardBase):
@@ -33,7 +44,17 @@ class InversionSdxl(OpGuardBase):
     MODEL_ID = "stabilityai/stable-diffusion-xl-base-1.0"
     REVISION = "main"
     NEED_GRADS = True
-    DETECTOR_TYPE = SDXLDDIMPipeline
+
+    @property
+    def DETECTOR_TYPE(self) -> DetectorFactory:  # noqa: N802  (mirrors base class)
+        """Handle module not installed."""
+        if _SDXLDIMPipeline is None:
+            message = (
+                "Inversion SDXLDIMPipeline requires the optional dependency 'instantstyle-plus'. "
+                "Install with: pip install opguard[instantstyleplus]"
+            )
+            raise RuntimeError(message)
+        return cast("DetectorFactory", _SDXLDIMPipeline)
 
     def _load_detector(self) -> object:
         # For tracking what is loaded"
