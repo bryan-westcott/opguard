@@ -62,14 +62,13 @@ class HedDetector(OpGuardBase):
     MODEL_ID = "lllyasviel/Annotators"
     REVISION = "main"
     # Will fail on bfloat16 due to use of numpy detach
-    DTYPE_PREFERENCE = torch.float16
     DETECTOR_TYPE = HEDdetector
-    FROM_PRETRAINED_SKIP_KWARGS = ("variant", "use_safetensors")
-
-    def _load_detector(self) -> object:
-        return self.DETECTOR_TYPE.from_pretrained(
-            self.model_id,
-        ).to(self.device)
+    FROM_PRETRAINED_SKIP_KWARGS = ("variant", "use_safetensors", "revision", "torch_dtype", "device", "device_map")
+    ACCEPTS_TO_KWARGS = False
+    # This model does not accept dtype as a .to() arg or kwarg and it
+    # is lightweight enough that it should run in full (32-bit) precision
+    SKIP_TO_DTYPE = True  # This model
+    DTYPE_PREFERENCE = torch.float32
 
 
 class MarigoldDepthDetector(OpGuardBase):
@@ -151,7 +150,8 @@ class DwposeDetector(OpGuardBase):
     REVISION = "main"
     DETECTOR_TYPE = DWposeDetector
 
-    # Note: only device supported as a kwarg
+    # Note: only device supported as a kwarg, and no positional model_id
+    # This has an atypical signature, so load manually
     def _load_detector(self) -> object:
         return self.DETECTOR_TYPE(device=self.device)
 
