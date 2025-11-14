@@ -1126,8 +1126,29 @@ def _cache_check_load_against_expected(*, signature_metadata_expected: dict[str,
 
     Note: some models used mixed precision and only some models are operated in half/quantized preciesion.
     """
+    dtype = getattr(model, "dtype", None)
+    logger.warning(f"DTYPE: {dtype=}, {type(dtype)=}, {type(model)=}, {model=}")
+    if dtype is None:
+        logger.trace("Model has no dtype")
+        if isinstance(model, (types.LambdaType, types.FunctionType)):
+            # Skip additional checks
+            logger.trace("Detected function or lambda, skipping additional validation")
+            return
+        if hasattr(model, "netNetwork"):
+            # this is covers controlnet-aux classes
+            logger.trace("Model has 'netNetwork' attribute, obtaining dtype from this")
+            dtype = next((param.dtype for param in model.netNetwork.parameters()), None)
+            if dtype is None:
+                message = "Unable to determine dtype from netNetwork"
+                raise ValueError(message)
+        elif hasattr(model, "pose_estimation"):
+            logger.trace("Model has 'pose_estimation' network, skipping validation due to onnx")
+            return
+        else:
+            message = "If model has no dtype attr, it must be a function or lambda"
+            raise ValueError(message)
     # Determine dtypes used in the actual model
-    model_dtype: torch.dtype = normalize_dtype(getattr(model, "dtype", None))
+    model_dtype: torch.dtype = normalize_dtype(dtype)
     # Valid for torch NN models
     submodule_dtypes: set[torch.dtype] = {
         normalize_dtype(p.dtype) for _, p in (getattr(model, "named_parameters", list)())
