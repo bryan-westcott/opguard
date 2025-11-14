@@ -486,7 +486,7 @@ wheels = [
 [[package]]
 name = "easy-dwpose"
 version = "1.0.2.post4"
-source = { git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?tag=v1.0.2.post4#62a36ddcffaabde0901b285786d34dadcdaa0a81" }
+source = { git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?rev=v1.0.2.post4#62a36ddcffaabde0901b285786d34dadcdaa0a81" }
 dependencies = [
     { name = "huggingface-hub" },
     { name = "imageio" },
@@ -739,7 +739,7 @@ wheels = [
 [[package]]
 name = "instantstyle-plus"
 version = "0.1.0"
-source = { git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git?tag=v0.1.0#1cc86b1b2a212c46b53367f61f4750afb6bfc9f5" }
+source = { git = "https://gitlab.com/bw42/instantstyle-plus-fork.git?rev=v0.1.0#88bd1c2affa318f475b3ee36af9db493ca2fa0e0" }
 dependencies = [
     { name = "pyrallis" },
 ]
@@ -1666,12 +1666,12 @@ requires-dist = [
     { name = "controlnet-aux", marker = "extra == 'controlnet'", specifier = ">=0.0.10" },
     { name = "controlnet-aux", marker = "extra == 'test'", specifier = ">=0.0.10" },
     { name = "diffusers", specifier = ">=0.33.1" },
-    { name = "easy-dwpose", marker = "extra == 'easydwpose'", git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?tag=v1.0.2.post4" },
-    { name = "easy-dwpose", marker = "extra == 'test'", git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?tag=v1.0.2.post4" },
+    { name = "easy-dwpose", marker = "extra == 'easydwpose'", git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?rev=v1.0.2.post4" },
+    { name = "easy-dwpose", marker = "extra == 'test'", git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?rev=v1.0.2.post4" },
     { name = "huggingface-hub", specifier = ">=0.24.6" },
     { name = "hypothesis", marker = "extra == 'test'" },
-    { name = "instantstyle-plus", marker = "extra == 'inversion'", git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git?tag=v0.1.0" },
-    { name = "instantstyle-plus", marker = "extra == 'test'", git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git?tag=v0.1.0" },
+    { name = "instantstyle-plus", marker = "extra == 'inversion'", git = "https://gitlab.com/bw42/instantstyle-plus-fork.git?rev=v0.1.0" },
+    { name = "instantstyle-plus", marker = "extra == 'test'", git = "https://gitlab.com/bw42/instantstyle-plus-fork.git?rev=v0.1.0" },
     { name = "loguru" },
     { name = "numpy", specifier = ">=1.26.4,<3" },
     { name = "pillow", specifier = ">=11.1.0" },

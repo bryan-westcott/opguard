@@ -57,12 +57,12 @@ controlnet = [
 
 # For DWposeDetector, which also requires onnx!
 easydwpose = [
-    "easy-dwpose",
+    "easy-dwpose @ git+https://bryan-westcott@github.com/bryan-westcott/easy-dwpose-fork.git@v1.0.2.post4"
 ]
 
 # For inversion
 inversion =[
-    "instantstyle-plus",
+    "instantstyle-plus @ git+https://bw42@gitlab.com/bw42/instantstyle-plus-fork.git@v0.1.0"
 ]
 
 # For test suite
@@ -76,9 +76,9 @@ test = [
     "hypothesis",
     "pytest-gitignore>=1.3",
     "requests>=2.32.4",
-    "instantstyle-plus",
-    "easy-dwpose",
     "controlnet-aux>=0.0.10",
+    "easy-dwpose @ git+https://bryan-westcott@github.com/bryan-westcott/easy-dwpose-fork.git@v1.0.2.post4",
+    "instantstyle-plus @ git+https://bw42@gitlab.com/bw42/instantstyle-plus-fork.git@v0.1.0",
 ]
 
 # To build a wheel/sdist, with:
@@ -167,12 +167,6 @@ override-dependencies = [
 #      in mainline pytorch but not 12.8 (or 11.8)
 torch = { index = "pytorch-cu"}
 torchvision = { index = "pytorch-cu"}
-# Note: a private repo
-#    set a store credential helper entry in .git-credentials:
-#       https://<user_id>:<accesstoken>@gitlab.com
-instantstyle-plus = { git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git", tag = "v0.1.0" }
-# Fork of easy-dwpose that supports cuda 12.x and numpy 2
-easy-dwpose = { git = "https://github.com/bryan-westcott/easy-dwpose-fork.git", tag = "v1.0.2.post4" }
 
 [[tool.uv.index]]
 # also set tool.uv.sources
