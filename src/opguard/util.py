@@ -1127,7 +1127,6 @@ def _cache_check_load_against_expected(*, signature_metadata_expected: dict[str,
     Note: some models used mixed precision and only some models are operated in half/quantized preciesion.
     """
     dtype = getattr(model, "dtype", None)
-    logger.warning(f"DTYPE: {dtype=}, {type(dtype)=}, {type(model)=}, {model=}")
     if dtype is None:
         logger.trace("Model has no dtype")
         if isinstance(model, (types.LambdaType, types.FunctionType)):
