@@ -78,9 +78,9 @@ class Blip2(Blip):
     REVISION = "main"
     DETECTOR_TYPE = Blip2ForConditionalGeneration
     DEFAULT_DEVICE_MAP = "auto"
+    PROCESSOR_TYPE = Blip2Processor
     SKIP_TO_DEVICE = True
     SKIP_TO_DTYPE = True
-    PROCESSOR_TYPE = Blip2Processor
 
 
 class Blip2_32Bit(Blip2):
