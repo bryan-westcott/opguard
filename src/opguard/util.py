@@ -116,6 +116,90 @@ SUPPORTED_DTYPES_GPU = (torch.float16, torch.bfloat16)
 # Superset of all supported dtypes
 SUPPORTED_DTYPES = SUPPORTED_DTYPES_UNIVERSAL + SUPPORTED_DTYPES_GPU
 
+
+# ---- Protocols and type aliases for detector models -----
+
+
+@runtime_checkable
+class Detector(Protocol):
+    """Protocol for a loaded detector model instance.
+
+    A "detector" in this context is any object that:
+      * Represents a loaded model (e.g., a diffusers pipeline, a ControlNet
+        annotator, or a custom wrapper).
+      * Can be moved between devices / dtypes using a `.to(...)` method.
+      * Is typically initialized from pretrained weights with .from_pretrained()
+      * Sometimes are initialized only via the __init__
+
+    Concrete implementations may provide additional methods and properties
+    (e.g., `__call__`, `.dtype`, `.device`, etc.), but opguard only relies on
+    the subset declared here for static typing.
+    """
+
+    @classmethod
+    def from_pretrained(cls, model_id: str, **kwargs: object) -> Detector:
+        """Construct and return a detector instance from a model identifier.
+
+        This is modeled after Hugging Face's `from_pretrained` convention,
+        but is generic enough to cover:
+          * diffusers pipelines   (e.g., StableDiffusionXLPipeline)
+          * transformers models   (if ever used as detectors)
+          * custom wrapper types  that follow the same pattern
+
+        The exact semantics of `model_id` and `**kwargs` are left to the
+        implementation; opguard only assumes that calling this returns a
+        fully-initialized `Detector`.
+        """
+        ...
+
+    @classmethod
+    def to(cls, *args: object, **kwargs: object) -> Detector:
+        """Move the detector to a different device and/or dtype.
+
+        This mirrors the surface of `torch.nn.Module.to`, but we keep the
+        signature intentionally loose (`*args, **kwargs`) because different
+        frameworks (diffusers, controlnet_aux, custom wrappers) sometimes
+        expose narrower or slightly different `.to(...)` signatures.
+
+        Implementations are expected to return `self` (or an equivalent
+        detector instance) to allow chaining:
+
+        >>> detector = detector.to(device="cuda", dtype=torch.float16)
+        """
+        ...
+
+    # optional, if you ever load the director directly, wihtout from_pretrained()
+    def __init__(self, model_id: str, **kwargs: object) -> None:
+        """Signature for detectors instantiated directly rather than `from_pretrained`.
+
+        This is included so that `type[Detector]` (or any `DetectorFactory`
+        that is a bare class) can be called with `(model_id, **kwargs)` in
+        place of `from_pretrained`. Implementations are free to ignore extra
+        kwargs they don't care about.
+
+        Note: many detectors will *not* use this directly (they rely solely
+        on `from_pretrained`), but having it in the Protocol keeps mypy
+        satisfied when we treat classes as callables that yield Detectors.
+        """
+        ...
+
+
+#: A callable that, when invoked, returns a `Detector` instance
+#:
+#: Note: This is for passing around the detector type, rather than
+#:       an instance of the detector type.  Mixing the two will (correctly)
+#:       produce static type checker (e.g., mypy) errors.
+#:
+#: This is intentionally broad and is used to represent:
+#:   * A class           (e.g., `StableDiffusionXLPipeline`)
+#:   * A classmethod     (e.g., `StableDiffusionXLPipeline.from_pretrained`)
+#:   * A helper function (e.g., `load_sdxl_detector(...)`)
+#:   * A lambda          (e.g., small one-off test factories)
+#:
+#: Anywhere you see `DetectorFactory` in the code, you should read it as:
+#: "Something I can call with `(model_id, **kwargs)` to get a Detector".
+DetectorFactory: TypeAlias = Callable[..., Detector]
+
 # ---------- Error detection / scrubbing ----------
 
 
@@ -1522,7 +1606,7 @@ def variant_guard(
 def quant_guard(
     *,
     compute_dtype: torch.dtype,
-    model_type: Detector,
+    model_type: DetectorFactory,
     quant_type: str | None,
     quant_config_override: QuantConfigLike | None = None,
     quant_use_double: bool = False,
@@ -2080,7 +2164,7 @@ def init_guard(
     dtype: torch.dtype,
     device: DeviceLike | None,
     device_map: DeviceMapLike | None,
-    model_type: Detector,
+    model_type: DetectorFactory,
     model_id: str | None = None,
     revision: str | None = None,
     local_hfhub_variant_check_only: bool = False,
@@ -2267,13 +2351,3 @@ def model_guard(
         ):
             # explicitly delete it so GC/cache-clear can run
             del model
-
-
-@runtime_checkable
-class Detector(Protocol):
-    """The expected attributes of detector types.
-
-    This includes the critical parts of for load_pretrained.
-    """
-
-    from_pretrained: Callable

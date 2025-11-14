@@ -70,7 +70,7 @@ import torch
 from loguru import logger
 
 from .util import (
-    Detector,
+    DetectorFactory,
     DeviceLike,
     DeviceMapLike,
     QuantConfigLike,
@@ -168,7 +168,7 @@ class OpGuardBase(ABC):
 
     @property
     @abstractmethod
-    def DETECTOR_TYPE(self) -> Detector:  # noqa: N802  (becomes a ClassVar when concrete)
+    def DETECTOR_TYPE(self) -> DetectorFactory:  # noqa: N802  (becomes a ClassVar when concrete)
         """The object type for the detector for which weights are loaded into."""
 
     # --- Subclasses may override ---
@@ -231,6 +231,8 @@ class OpGuardBase(ABC):
             3. add static kwargs with self.FROM_PRETRAINED_ADDITIONAL_KWARGS
             4. skip unsupported args with self.FROM_PRETRIAINED_SKIP_KWARGS
         """
+        # ruff: noqa: PLR0912  # This has to handle lots of different model interfaces
+        # ruff: noqa: C901  # This has to handle lots of different model interfaces
         # basic args
         from_pretrained_kwargs = {
             "revision": self.REVISION,
@@ -279,7 +281,12 @@ class OpGuardBase(ABC):
             f"Loading {self.DETECTOR_TYPE} with model_id='{self.model_id}', "
             f"kwargs={self.short_print_models(from_pretrained_kwargs)}",
         )
-        model = self.DETECTOR_TYPE.from_pretrained(self.model_id, **from_pretrained_kwargs)
+        if not hasattr(self.DETECTOR_TYPE, "from_pretrained"):
+            logger.trace(f"Detector {self.DETECTOR_TYPE} has no from_pretrained, using __init__ instead")
+            initializer = self.DETECTOR_TYPE
+        else:
+            initializer = self.DETECTOR_TYPE.from_pretrained
+        model = initializer(self.model_id, **from_pretrained_kwargs)
         logger.debug(
             f"Applying or skipping model.to() with {to_kwargs=}, due to {self.SKIP_TO_DEVICE=}, {self.SKIP_TO_DTYPE=}",
         )

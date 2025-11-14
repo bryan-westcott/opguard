@@ -18,7 +18,7 @@ from diffusers.pipelines.marigold.pipeline_marigold_normals import MarigoldNorma
 from easy_dwpose import DWposeDetector
 from PIL.Image import Image as PILImage
 
-from .base import Detector, OpGuardBase
+from .base import DetectorFactory, OpGuardBase
 
 
 class ControlnetBase(OpGuardBase):
@@ -41,7 +41,7 @@ class TileDetector(OpGuardBase):
     NAME = "tile-detector"
     MODEL_ID = "xinsir/controlnet-tile-sdxl-1.0"
     REVISION = "main"
-    DETECTOR_TYPE = cast("Detector", lambda *_, **__: ...)  # one-off coercion
+    DETECTOR_TYPE = cast("DetectorFactory", lambda *_, **__: ...)  # one-off coercion
 
     def _load_detector(self) -> Callable:
         return lambda img: img.copy()
