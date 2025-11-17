@@ -52,13 +52,20 @@ It gives you **all of the above** in one clean abstraction:
 - **Easy/flexible extensibility** — easy to extend without boilerplate or dogmatism
 
 OpGuard also adds an abstract base class that is easily customizable with a few
-lines of code (see domain-specific examples in `nlp.py`, `vae.py`, `sd.py`, etc.).
+lines of code. See domain-specific examples in:
+
+- `nlp.py`: autocaptioning using HF transformers
+- `vae.py`: variational autoencoders 
+- `sd.py`: stable diffusion and SDXL using HF diffusers.
+
 There are several approaches for specializing to a number of ML/AI problems beyond
 simple inference, including:
 
-- Diffusers mixins, see `sd.py`
+- Specialized mixins for diffusion (pipeline components), see `sd.py`
+- Heavy quantization for auto-captioning (typically very large), see `nlp.py`
 - ControlNets (not callable alone), see `control.py`
 - Inversion problems (uses grads), see `inversion.py`
+- Bi-directional models (VAEs have both and encoder and decoder), see `vae.py`
 
 The goal is flexibility without dogmatic use patterns while retaining
 all the above protections. OpGuard avoids the need for boilerplate code,
@@ -70,9 +77,7 @@ allowing data scientists and developers to move quickly with confidence.
 
 Note that we only write code for the parts that differ from other models.
 All the model loading, device handling, revision enforcement, caching,
-memory (VRAM) management are all handled automatically. Note also that
-the example below shows how easy it is to build an atypical use case:
-two calls to provide encode followed by decode.
+memory (VRAM) management are all handled automatically. 
 
 ```python
 import torch
@@ -103,7 +108,7 @@ class TinyVAE(OpGuardBase):
         """Apply post-processing (called automatically after _predict."""
         return self._processor.postprocess(output_raw, output_type="pil")[0]
 
-# Test code
+# Run the VAE safely
 with TinyVAE() as vae:
     x = torch.rand(1, 3, 512, 512, device=vae.device, dtype=vae.dtype) * 2 - 1
     y = vae(input_raw=x)
