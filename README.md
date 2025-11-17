@@ -123,7 +123,7 @@ Then, install `opguard` from git:
 
 Finally, run smoke tests:
 
-* `from opguard.tests.test import smoke; smoke()`
+* `from opguard.tests import smoke; smoke()`
 
 
 
