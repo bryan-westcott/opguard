@@ -1,0 +1,70 @@
+name: Run all PyTest Tests
+on:
+  # Automatically trigger it when detected changes in repo
+  # Note: only keep push action as PR build is handled by
+  #       dev-pr composite action which will call this as
+  #       a reusable workflow (workflow_call)
+  # Allow manual trigger
+  workflow_dispatch:
+  # Allow call trigger
+  workflow_call:
+jobs:
+  run-all-code-checks:
+    name: Run all pytest-tests
+    # TODO: this will need to be a GPU
+    runs-on: ubuntu-latest
+    steps:
+      # ---- Common Prep -----
+
+      # Step 0a: Checkout code
+      - name: Checkout to the branch
+        uses: actions/checkout@v4
+      # Step 0b: Validate yaml
+      - name: Run Yamllint yaml linter
+        uses: karancode/yamllint-github-action@master
+        with:
+          yamllint_config_filepath: ".yamllint"
+          yamllint_strict: true
+      # Step 1: Determine if python (and uv sync) are needed
+      - name: Check if python needed
+        id: python-changes
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            pyproject.toml
+            uv.lock
+            src/**/*.py
+            src/**/*.pi
+      # Step 1a: Output python needed tests
+      - name: Python needed status
+        id: python-changes-status
+        shell: bash
+        run: |
+          echo "steps.python-changes.outputs.any_changed=${{ steps.python-changes.outputs.any_changed }}"
+          echo "steps.python-changes.outputs.all_changed_files=${{ steps.python-changes.outputs.all_changed_files }}"
+      # Step 2: Setup python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        if: steps.python-changes.outputs.any_changed == 'true' || github.event_name == 'workflow_dispatch'
+        with:
+          python-version-file: "pyproject.toml"
+      # Step 3: Install UV with caching
+      - name: Install UV and enable caching
+        uses: astral-sh/setup-uv@v5
+        if: steps.python-changes.outputs.any_changed == 'true' || github.event_name == 'workflow_dispatch'
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      # Step 4: install packages (including dev requirements for mypy)
+      # Note: using --locked will also check for out-of-date uv.lock file
+      # Note: mypy typecheck and lockfile check will both require main
+      #       dependencies, so don't install just dev
+      - name: Install python dev packages
+        if: steps.python-changes.outputs.any_changed == 'true' || github.event_name == 'workflow_dispatch'
+        run: uv sync --dev --locked --no-compile-bytecode
+      # Run pytest
+      - name: Run pytest
+        run: |
+          uv run pytest -q

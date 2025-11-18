@@ -1,0 +1,53 @@
+name: Check or Skip Remaining Steps
+description: >
+  Determine whether files changed or is a dispatch workflow in order to continue subsequent workflow steps contingent on those conditions.
+
+# Note: will still check if it is a dispatch workflow
+inputs:
+  files-changed-patterns:
+    description: "Glob patterns for filtering files changed"
+    required: true
+    type: string
+outputs:
+  run-steps:
+    description: "Determines if subsequent steps should run"
+    value: ${{ steps.set-run-steps.outputs.run-steps }}
+runs:
+  using: "composite"
+  steps:
+    # Step 0: ensure code checked out already
+    - name: Check if repository is already checked out
+      id: repo-check
+      shell: bash
+      run: |
+        if [ ! -d "$GITHUB_WORKSPACE/.git" ]; then
+          echo "Repository not checked out. Failing the workflow."
+          exit 1
+        fi
+    # Step 1: file changes
+    - name: Get all changed files that match pattern
+      id: changed-files
+      uses: tj-actions/changed-files@v45
+      with:
+        # Avoid using single or double quotes for multiline patterns
+        files: ${{ inputs.files-changed-patterns }}
+    # Step 2: determine if checks should proceed
+    - name: Set run-steps Variable
+      id: set-run-steps
+      shell: bash
+      run: |
+        echo "Debug: any_changed=${{ steps.changed-files.outputs.any_changed }}"
+        echo "Debug: all_changed_files=${{ steps.changed-files.outputs.all_changed_files }}"
+        echo "Debug: github.event_name=${{ github.event_name }}"
+        if [[ "${{ steps.changed-files.outputs.any_changed }}" == 'true' ]]; then
+          echo "Setting run-steps=true due to files changed: ${{ steps.changed-files.all_changed_files }}."
+          echo "run-steps=true" >> $GITHUB_OUTPUT
+        else
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "FORCE STEPS: setting run-steps=true even with no matching files changed due to dispatch trigger mode."
+            echo "run-steps=true" >> $GITHUB_OUTPUT
+          else
+            echo "SKIPPING STEPS: setting run-steps=false, no changes of type: ${{ inputs.files-changed-patterns }}."
+            echo "run-steps=false" >> $GITHUB_OUTPUT
+          fi
+        fi

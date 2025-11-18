@@ -1,0 +1,33 @@
+name: Ruff Python Lint and Format Check
+decription: Run ruff python linter and format checker
+inputs:
+  files-changed-patterns:
+    description: File patterns to determine if test needs to run
+    required: false
+    type: string
+    default: |
+      src/**/*.py
+      src/**/*.pyi
+      pyproject.toml
+      uv.lock
+runs:
+  using: "composite"
+  steps:
+    # Step 1: Determine whether to run checks (changes or dispatch trigger)
+    - name: Checks needed if relevant files change or dispatch trigger
+      id: check-skip
+      uses: ./.github/actions/determine-run-steps
+      with:
+        files-changed-patterns: ${{ inputs.files-changed-patterns }}
+    # Step 2: Run mypy, using dev group dependencies from pyproject.toml
+    - name: Run MyPy
+      if: steps.check-skip.outputs.run-steps == 'true'
+      shell: bash
+      run: |
+        # Needs not just mypy, but also the type packages in dev
+        # Note: mypy version determined from pyproject.toml and uv sync
+        # WARNING: removing limit to group dev (--only-dev) will install whole
+        #          project.  Whole project is necessary unless standalone
+        #          types are available for all packages.  Torch does
+        #          not provide standalone type files, so install whole env
+        uv run mypy src

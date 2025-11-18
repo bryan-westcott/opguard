@@ -1,0 +1,44 @@
+name: Docformatter Python Docstring Format Check
+description: Run docformatter python docstring formatter
+inputs:
+  # Default: use longer summary lines (88 characters) to prevent conflicts
+  #       with ruff and pep257 directive
+  formatter-options:
+    description: Options for docformatter python docstring formatter
+    required: false
+    default: -r -i --pre-summary-newline --make-summary-multi-line --wrap-summaries 88
+  # Note: if a directory, use the -r option
+  files-to-check:
+    description: Files to check formatting
+    required: false
+    default: "src/"
+  files-changed-patterns:
+    description: File patterns to determine if test needs to run
+    required: false
+    type: string
+    default: |
+      src/**/*.py
+      pyproject.toml
+runs:
+  using: "composite"
+  steps:
+    # Step 1: Determine whether to run checks (changes or dispatch trigger)
+    - name: Checks needed if relevant files change or dispatch trigger
+      id: check-skip
+      uses: ./.github/actions/determine-run-steps
+      with:
+        files-changed-patterns: ${{ inputs.files-changed-patterns }}
+    # Step 2: run docformatter
+    # Note: it will find the correct version in pyproject.toml
+    - name: Run docformatter
+      if: steps.check-skip.outputs.run-steps == 'true'
+      shell: bash
+      # Note: docformatter version determined from pyproject.toml and uv sync
+      # Note: it will install docformatter from pyproject.toml
+      # WARNING: removing --only-dev will install the whole project
+      #          which is not necessary just for docstring formatting!
+      run: |-
+        uv run --only-dev --with docformatter \
+        docformatter ${{ inputs.formatter-options }} \
+        ${{ inputs.files-to-check }}
+      # done

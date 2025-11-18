@@ -1,0 +1,41 @@
+name: Shellcheck Shell Script Check
+decription: Run shellcheck shell script checker
+inputs:
+  files-changed-patterns:
+    description: File patterns to determine if test needs to run
+    required: false
+    type: string
+    default: |
+      scripts/*.sh
+runs:
+  using: "composite"
+  steps:
+    # Step 1: Determine whether to run checks (changes or dispatch trigger)
+    - name: Checks needed if relevant files change or dispatch trigger
+      id: check-skip
+      uses: ./.github/actions/determine-run-steps
+      with:
+        files-changed-patterns: ${{ inputs.files-changed-patterns }}
+    - name: Get shellcheck version from pyproject.toml
+      id: shellcheck-version
+      if: steps.check-skip.outputs.run-steps == 'true'
+      shell: bash
+      run: |
+        source scripts/extract-tool-version-from-pyproject-toml.sh
+        echo "SHELLCHECK_VERSION=$(extract-tool-version-from-pyproject-toml-from-section shellcheck)" >> $GITHUB_ENV
+    - name: Ensure SHELLCHECK_VERSION is set
+      if: steps.check-skip.outputs.run-steps == 'true'
+      shell: bash
+      run: |
+        if [ -z "$SHELLCHECK_VERSION" ]; then
+          echo "SHELLCHECK_VERSION is not set or is empty"
+          exit 1
+        else
+          echo "SHELLCHECK_VERSION is set to $SHELLCHECK_VERSION"
+        fi
+    # Step 2: Run shellcheck action
+    - name: Run ShellCheck
+      if: steps.check-skip.outputs.run_steps == 'true'
+      uses: ludeeus/action-shellcheck@master
+      with:
+        version: ${{ env.SHELLCHECK_VERSION }}

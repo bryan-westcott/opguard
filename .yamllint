@@ -3,7 +3,7 @@ extends: default
 rules:
   # --- Length & folding -------------------------------------------------------
   line-length:
-    max: 120 # Practical limit; yamlfmt unwraps long scalars anyway
+    max: 140 # Practical limit; yamlfmt unwraps long scalars anyway
     level: warning # Don’t fail CI just for long prose
     allow-non-breakable-words: true # Allow hashes/IDs that exceed max
     allow-non-breakable-inline-mappings: true # Allow long inline maps if they can't be wrapped safely
@@ -21,6 +21,7 @@ rules:
     indent-sequences: consistent # List items align cleanly under their parent key
   empty-lines:
     max: 1 # Avoid multiple blank lines (yamlfmt collapses anyway)
+    max-end: 1 # yamlfmt sometimes puts a blank line at the end
   # --- Whitespace hygiene -----------------------------------------------------
   trailing-spaces: enable # Strip stray trailing spaces
   new-line-at-end-of-file: enable # Enforce POSIX text file convention

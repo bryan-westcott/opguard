@@ -1,0 +1,39 @@
+name: Prettier Format Check
+decription: Run Prettier format checks (md, json, toml, yaml)
+# Note: ruff will check pyproject.toml and toml support is immature in
+#       prettier so do not include toml files here
+inputs:
+  prettier_options:
+    description: Options for Prettier
+    required: false
+    default: "--check **/*.{md,json,yml,yaml} --ignore-path .prettierignore"
+  only_changed:
+    description: Run only on changed files
+    required: false
+    default: false
+runs:
+  using: "composite"
+  steps:
+    - name: Get prettier version from pyproject.toml
+      id: prettier-version
+      if: steps.check-skip.outputs.run-steps == 'true'
+      shell: bash
+      run: |
+        source scripts/extract-tool-version-from-pyproject-toml.sh
+        echo "PRETTIER_VERSION=$(extract-tool-version-from-pyproject-toml-from-section prettier)" >> $GITHUB_ENV
+    - name: Ensure PRETTIER_VERSION is set
+      if: steps.check-skip.outputs.run-steps == 'true'
+      shell: bash
+      run: |
+        if [ -z "$PRETTIER_VERSION" ]; then
+          echo "PRETTIER_VERSION is not set or is empty"
+          exit 1
+        else
+          echo "PRETTIER_VERSION is set to $PRETTIER_VERSION"
+        fi
+    - name: "Prettier formatting check"
+      uses: creyD/prettier_action@v4.3
+      with:
+        prettier_options: ${{ inputs.prettier_options }}
+        only_changed: ${{ inputs.only_changed }}
+        prettier_version: ${{ env.PRETTIER_VERSION }}
