@@ -17,10 +17,10 @@ runs:
       run: |
         set -euo pipefail
 
-        PKG="${{ inputs.package-name }}"
+        PKG="${{ inputs.tool-name }}"
 
         if [ -z "$PKG" ]; then
-          echo "package-name input is required"
+          echo "tool-name input is required"
           exit 1
         fi
 
