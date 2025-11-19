@@ -32,7 +32,7 @@ runs:
           echo "PRETTIER_VERSION is set to $PRETTIER_VERSION"
         fi
     - name: "Prettier formatting check"
-      uses: creyD/prettier_action@v4.3
+      uses: creyD/prettier_action@v4.6
       with:
         prettier_options: ${{ inputs.prettier_options }}
         only_changed: ${{ inputs.only_changed }}
