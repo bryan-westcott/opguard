@@ -6,7 +6,7 @@ inputs:
   prettier_options:
     description: Options for Prettier
     required: false
-    default: "--check **/*.{md,json,yml,yaml} --ignore-path .prettierignore"
+    default: "--check **/*.{md,json,toml} --ignore-path .prettierignore"
   only_changed:
     description: Run only on changed files
     required: false
