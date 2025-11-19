@@ -7,6 +7,7 @@ inputs:
     type: string
     default: |
       scripts/*.sh
+      dev-scripts/*.sh
 runs:
   using: "composite"
   steps:
@@ -16,26 +17,16 @@ runs:
       uses: ./.github/actions/determine-run-steps
       with:
         files-changed-patterns: ${{ inputs.files-changed-patterns }}
-    - name: Get shellcheck version from pyproject.toml
-      id: shellcheck-version
+    # Step 2: Detect version desired, to match that used for pre-commit
+    - name: Get Shellcheck version from pyproject.toml
+      id: tool-version
       if: steps.check-skip.outputs.run-steps == 'true'
-      shell: bash
-      run: |
-        source scripts/extract-tool-version-from-pyproject-toml.sh
-        echo "SHELLCHECK_VERSION=$(extract-tool-version-from-pyproject-toml-from-section shellcheck)" >> $GITHUB_ENV
-    - name: Ensure SHELLCHECK_VERSION is set
-      if: steps.check-skip.outputs.run-steps == 'true'
-      shell: bash
-      run: |
-        if [ -z "$SHELLCHECK_VERSION" ]; then
-          echo "SHELLCHECK_VERSION is not set or is empty"
-          exit 1
-        else
-          echo "SHELLCHECK_VERSION is set to $SHELLCHECK_VERSION"
-        fi
-    # Step 2: Run shellcheck action
+      uses: ./.github/actions/extract-tool-version
+      with:
+        tool-name: shellcheck
+    # Step 3: Run shellcheck action
     - name: Run ShellCheck
       if: steps.check-skip.outputs.run_steps == 'true'
       uses: ludeeus/action-shellcheck@master
       with:
-        version: ${{ env.SHELLCHECK_VERSION }}
+        version: ${{ steps.tool-version.outputs.version }}
