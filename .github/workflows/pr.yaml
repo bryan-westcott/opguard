@@ -19,6 +19,8 @@ jobs:
   all-code-checks:
     name: Run All Code Quality Checks
     uses: ./.github/workflows/all-code-checks.yaml
+    with:
+      trigger-event-name: ${{ github.event_name }}
   # Run pytest tests (requires GPU for reasonable coverage)
   # This is the most expensive step, so only run if all other tests pass
   all-pytest-tests:

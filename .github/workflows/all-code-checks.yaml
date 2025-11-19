@@ -6,8 +6,18 @@ on:
   #       a reusable workflow (workflow_call)
   # Allow manual trigger
   workflow_dispatch:
+    inputs:
+      trigger-event-name:
+        description: "Original trigger (optional override)"
+        required: false
+        default: ""
   # Allow call trigger
   workflow_call:
+    inputs:
+      trigger-event-name:
+        description: "Trigger of parent workflow (required) for workflow_call"
+        required: false
+        type: string
 jobs:
   run-all-code-checks:
     name: Run all quality checks
@@ -67,6 +77,8 @@ jobs:
       # Step 5: Run prettier formatter (yaml, json, md)
       - name: Run Prettier formatting checks
         uses: ./.github/actions/prettier-format-check
+        with:
+          trigger-event-name: ${{ inputs.trigger-event-name || github.event_name }}
       #
       # ---- Code Check Actions -----
       #
@@ -74,23 +86,33 @@ jobs:
       #
       - name: Run ShellCheck shell script checks
         uses: ./.github/actions/shellcheck-shell-script-check
+        with:
+          trigger-event-name: ${{ inputs.trigger-event-name || github.event_name }}
       #
       # Step 7: Run Hadolint dockerfile checker action
       #
       - name: Run Hadolint dockerfile checks
         uses: ./.github/actions/hadolint-dockerfile-format-check
+        with:
+          trigger-event-name: ${{ inputs.trigger-event-name || github.event_name }}
       #
       # Step 8: Install and run docstring check
       #
       - name: Run Docformatter python docstring checks
         uses: ./.github/actions/docformatter-python-docstring-format-check
+        with:
+          trigger-event-name: ${{ inputs.trigger-event-name || github.event_name }}
       #
       # Step 9: Install and run Ruff linting and format check
       #
       - name: Run Ruff linting and format checks
         uses: ./.github/actions/ruff-python-lint-and-format-check
+        with:
+          trigger-event-name: ${{ inputs.trigger-event-name || github.event_name }}
       #
       # Step 10: Mypy type annotation checker
       #
       - name: Run Mypy python type annotation checks
         uses: ./.github/actions/mypy-python-type-check
+        with:
+          trigger-event-name: ${{ inputs.trigger-event-name || github.event_name }}
