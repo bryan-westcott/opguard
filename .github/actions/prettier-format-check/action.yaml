@@ -11,6 +11,14 @@ inputs:
     description: Run only on changed files
     required: false
     default: false
+  files-changed-patterns:
+    description: File patterns to determine if test needs to run
+    required: false
+    type: string
+    default: |
+      **/*.md
+      **/*.json
+      **/*.toml
 runs:
   using: "composite"
   steps:
@@ -29,6 +37,7 @@ runs:
         tool-name: prettier
     # Step 3: Run prettier check
     - name: "Prettier formatting check"
+      if: steps.check-skip.outputs.run-steps == 'true'
       uses: creyD/prettier_action@v4.6
       with:
         prettier_options: ${{ inputs.prettier_options }}
