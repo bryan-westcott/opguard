@@ -1,7 +1,7 @@
 name: Prettier Format Check
-decription: Run Prettier format checks (md, json, toml, yaml)
+decription: Run Prettier format checks (md, json, toml)
 # Note: ruff will check pyproject.toml and toml support is immature in
-#       prettier so do not include toml files here
+#       prettier so you do not have to include toml files here
 inputs:
   prettier_options:
     description: Options for Prettier
@@ -14,26 +14,23 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Get prettier version from pyproject.toml
-      id: prettier-version
+    # Step 1: Determine whether to run checks (changes or dispatch trigger)
+    - name: Checks needed if relevant files change or dispatch trigger
+      id: check-skip
+      uses: ./.github/actions/determine-run-steps
+      with:
+        files-changed-patterns: ${{ inputs.files-changed-patterns }}
+    # Step 2: Detect tool version desired, to match that used for pre-commit
+    - name: Get Prettier version from pyproject.toml
+      id: tool-version
       if: steps.check-skip.outputs.run-steps == 'true'
-      shell: bash
-      run: |
-        source scripts/extract-tool-version-from-pyproject-toml.sh
-        echo "PRETTIER_VERSION=$(extract-tool-version-from-pyproject-toml-from-section prettier)" >> $GITHUB_ENV
-    - name: Ensure PRETTIER_VERSION is set
-      if: steps.check-skip.outputs.run-steps == 'true'
-      shell: bash
-      run: |
-        if [ -z "$PRETTIER_VERSION" ]; then
-          echo "PRETTIER_VERSION is not set or is empty"
-          exit 1
-        else
-          echo "PRETTIER_VERSION is set to $PRETTIER_VERSION"
-        fi
+      uses: ./.github/actions/extract-tool-version
+      with:
+        tool-name: prettier
+    # Step 3: Run prettier check
     - name: "Prettier formatting check"
       uses: creyD/prettier_action@v4.6
       with:
         prettier_options: ${{ inputs.prettier_options }}
         only_changed: ${{ inputs.only_changed }}
-        prettier_version: ${{ env.PRETTIER_VERSION }}
+        prettier_version: ${{ steps.tool-version.outputs.version }}
