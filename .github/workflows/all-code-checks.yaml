@@ -63,23 +63,34 @@ jobs:
       - name: Install python dev packages
         if: steps.python-changes.outputs.any_changed == 'true' || github.event_name == 'workflow_dispatch'
         run: uv sync --dev --locked --no-compile-bytecode
+      #
       # Step 5: Run prettier formatter (yaml, json, md)
       - name: Run Prettier formatting checks
-        # ---- Code Check Actions -----
-
         uses: ./.github/actions/prettier-format-check
+      #
+      # ---- Code Check Actions -----
+      #
       # Step 6: Run Shellcheck shell script checker action
+      #
       - name: Run ShellCheck shell script checks
         uses: ./.github/actions/shellcheck-shell-script-check
+      #
       # Step 7: Run Hadolint dockerfile checker action
+      #
       - name: Run Hadolint dockerfile checks
         uses: ./.github/actions/hadolint-dockerfile-format-check
+      #
       # Step 8: Install and run docstring check
+      #
       - name: Run Docformatter python docstring checks
         uses: ./.github/actions/docformatter-python-docstring-format-check
+      #
       # Step 9: Install and run Ruff linting and format check
+      #
       - name: Run Ruff linting and format checks
         uses: ./.github/actions/ruff-python-lint-and-format-check
+      #
       # Step 10: Mypy type annotation checker
+      #
       - name: Run Mypy python type annotation checks
         uses: ./.github/actions/mypy-python-type-check
