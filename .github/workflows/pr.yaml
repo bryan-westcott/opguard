@@ -10,6 +10,9 @@ on:
   pull_request:
     branches:
       - main
+  push:
+    branches:
+      - ci-cd # use this to test before merging with main
   workflow_dispatch:
 jobs:
   # Run all quality checks in a single job (single runner)
