@@ -1,4 +1,4 @@
-name: Extract version from pyproject
+name: Extract particular tool version from pyproject
 description: Run extract-tool-version-from-pyproject-toml.sh for a given package and expose the version
 inputs:
   tool-name:
@@ -7,12 +7,12 @@ inputs:
 outputs:
   version:
     description: Extracted version string for the requested package
-    value: ${{ steps.extract-version.outputs.version }}
+    value: ${{ steps.extract-tool-version.outputs.version }}
 runs:
   using: "composite"
   steps:
     - name: Detect version via helper script
-      id: extract-version
+      id: extract-tool-version
       shell: bash
       run: |
         set -euo pipefail
