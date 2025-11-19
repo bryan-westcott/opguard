@@ -1,6 +1,6 @@
 name: Check or Skip Remaining Steps
 description: >
-  Determine whether files changed or is a dispatch workflow in order to continue subsequent workflow steps contingent on those conditions.
+  Determine whether relevant file types changed or a manual dispatch workflow was triggered, either of which indicate that future steps should continue.
 
 # Note: will still check if it is a dispatch workflow
 inputs:
