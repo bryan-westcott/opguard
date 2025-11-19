@@ -54,15 +54,15 @@ It gives you **all of the above** in one clean abstraction:
 OpGuard also adds an abstract base class that is easily customizable with a few
 lines of code. See domain-specific examples in:
 
-- `nlp.py`: autocaptioning using HF transformers
-- `vae.py`: variational autoencoders 
+- `nlp.py`: auto-captioning using HF transformers
+- `vae.py`: variational autoencoders
 - `sd.py`: stable diffusion and SDXL using HF diffusers.
 
 There are several approaches for specializing to a number of ML/AI problems beyond
 simple inference, including:
 
 - Specialized mixins for diffusion (pipeline components), see `sd.py`
-- Heavy quantization for auto-captioning (typically very large), see `nlp.py`
+- Heavy quantization for auto-captioning (typically large), see `nlp.py`
 - ControlNets (not callable alone), see `control.py`
 - Inversion problems (uses grads), see `inversion.py`
 - Bi-directional models (VAEs have both and encoder and decoder), see `vae.py`
@@ -77,7 +77,7 @@ allowing data scientists and developers to move quickly with confidence.
 
 Note that we only write code for the parts that differ from other models.
 All the model loading, device handling, revision enforcement, caching,
-memory (VRAM) management are all handled automatically. 
+memory (VRAM) management are all handled automatically.
 
 ```python
 import torch
@@ -120,17 +120,15 @@ with TinyVAE() as vae:
 
 If `!pip freeze | grep torch` shows `torch==2.8.0+cu126`:
 
-* `!pip3 install --no-deps xformers --index-url https://download.pytorch.org/whl/cu126`
+- `!pip3 install --no-deps xformers --index-url https://download.pytorch.org/whl/cu126`
 
 Then, install `opguard` from git:
 
-* `!pip install "opguard[test] @ git+https://bryan-westcott@github.com/bryan-westcott/opguard.git@main"`
+- `!pip install "opguard[test] @ git+https://bryan-westcott@github.com/bryan-westcott/opguard.git@main"`
 
 Finally, run smoke tests:
 
-* `from opguard.tests import smoke; smoke()`
-
-
+- `from opguard.tests import smoke; smoke()`
 
 ### ⚖️ License & attribution
 
