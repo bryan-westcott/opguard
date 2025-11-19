@@ -8,6 +8,10 @@ inputs:
     description: "Glob patterns for filtering files changed"
     required: true
     type: string
+  trigger-event-name:
+    description: "The event name (e.g., worfklow_call, workflow_dispatch) of parent"
+    required: true
+    type: string
 outputs:
   run-steps:
     description: "Determines if subsequent steps should run"
@@ -38,12 +42,12 @@ runs:
       run: |
         echo "Debug: any_changed=${{ steps.changed-files.outputs.any_changed }}"
         echo "Debug: all_changed_files=${{ steps.changed-files.outputs.all_changed_files }}"
-        echo "Debug: github.event_name=${{ github.event_name }}"
+        echo "Debug: inputs.trigger-event-name=${{ inputs.trigger-event-name }}"
         if [[ "${{ steps.changed-files.outputs.any_changed }}" == 'true' ]]; then
           echo "Setting run-steps=true due to files changed: ${{ steps.changed-files.all_changed_files }}."
           echo "run-steps=true" >> $GITHUB_OUTPUT
         else
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          if [[ "${{ inputs.trigger-event-name }}" == "workflow_dispatch" ]]; then
             echo "FORCE STEPS: setting run-steps=true even with no matching files changed due to dispatch trigger mode."
             echo "run-steps=true" >> $GITHUB_OUTPUT
           else
