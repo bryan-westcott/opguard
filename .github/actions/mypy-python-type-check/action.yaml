@@ -29,10 +29,6 @@ runs:
       if: steps.check-skip.outputs.run-steps == 'true'
       shell: bash
       run: |
-        # Needs not just mypy, but also the type packages in dev
         # Note: mypy version determined from pyproject.toml and uv sync
-        # WARNING: removing limit to group dev (--only-dev) will install whole
-        #          project.  Whole project is necessary unless standalone
-        #          types are available for all packages.  Torch does
-        #          not provide standalone type files, so install whole env
-        uv run mypy src
+        # Note: mypy is installed in tooling (along with relevant stubs)
+        uv run --group tooling mypy src

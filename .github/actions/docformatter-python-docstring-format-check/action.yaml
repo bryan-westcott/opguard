@@ -39,11 +39,9 @@ runs:
       if: steps.check-skip.outputs.run-steps == 'true'
       shell: bash
       # Note: docformatter version determined from pyproject.toml and uv sync
-      # Note: it will install docformatter from pyproject.toml
-      # WARNING: removing --only-dev will install the whole project
-      #          which is not necessary just for docstring formatting!
+      # Note: docformatter installed in tooling group
       run: |-
-        uv run --only-dev --with docformatter \
+        uv run --group tooling \
         docformatter ${{ inputs.formatter-options }} \
         ${{ inputs.files-to-check }}
       # done
