@@ -1,0 +1,40 @@
+name: Extract version from pyproject
+description: Run extract-tool-version-from-pyproject-toml.sh for a given package and expose the version
+inputs:
+  tool-name:
+    description: Package name to pass to dev-scripts/extract-tool-version-from-pyproject-toml.sh
+    required: true
+outputs:
+  version:
+    description: Extracted version string for the requested package
+    value: ${{ steps.extract-version.outputs.version }}
+runs:
+  using: "composite"
+  steps:
+    - name: Detect version via helper script
+      id: extract-version
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        PKG="${{ inputs.package-name }}"
+
+        if [ -z "$PKG" ]; then
+          echo "package-name input is required"
+          exit 1
+        fi
+
+        if [ ! -x "./dev-scripts/extract-tool-version-from-pyproject-toml.sh" ]; then
+          echo "dev-scripts/extract-tool-version-from-pyproject-toml.sh is missing or not executable"
+          exit 1
+        fi
+
+        VERSION="$(./dev-scripts/extract-tool-version-from-pyproject-toml.sh "$PKG")"
+
+        if [ -z "$VERSION" ]; then
+          echo "extract-tool-version-from-pyproject-toml.sh returned an empty version for '$PKG'"
+          exit 1
+        fi
+
+        echo "Detected version for $PKG: $VERSION"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
