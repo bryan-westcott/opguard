@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11, <3.13"
 resolution-markers = [
     "python_full_version >= '3.12' and sys_platform == 'darwin'",
@@ -739,7 +739,7 @@ wheels = [
 [[package]]
 name = "instantstyle-plus"
 version = "0.1.0"
-source = { git = "https://gitlab.com/bw42/instantstyle-plus-fork.git?rev=v0.1.0#88bd1c2affa318f475b3ee36af9db493ca2fa0e0" }
+source = { git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git?rev=v0.1.0#1cc86b1b2a212c46b53367f61f4750afb6bfc9f5" }
 dependencies = [
     { name = "pyrallis" },
 ]
@@ -1670,8 +1670,8 @@ requires-dist = [
     { name = "easy-dwpose", marker = "extra == 'test'", git = "https://github.com/bryan-westcott/easy-dwpose-fork.git?rev=v1.0.2.post4" },
     { name = "huggingface-hub", specifier = ">=0.24.6" },
     { name = "hypothesis", marker = "extra == 'test'" },
-    { name = "instantstyle-plus", marker = "extra == 'inversion'", git = "https://gitlab.com/bw42/instantstyle-plus-fork.git?rev=v0.1.0" },
-    { name = "instantstyle-plus", marker = "extra == 'test'", git = "https://gitlab.com/bw42/instantstyle-plus-fork.git?rev=v0.1.0" },
+    { name = "instantstyle-plus", marker = "extra == 'inversion'", git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git?rev=v0.1.0" },
+    { name = "instantstyle-plus", marker = "extra == 'test'", git = "https://github.com/bryan-westcott/instantstyle-plus-fork.git?rev=v0.1.0" },
     { name = "loguru" },
     { name = "numpy", specifier = ">=1.26.4,<3" },
     { name = "pillow", specifier = ">=11.1.0" },
