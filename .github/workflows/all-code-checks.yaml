@@ -68,11 +68,11 @@ jobs:
             uv.lock
       # Step 4: install packages (including dev requirements for mypy)
       # Note: using --locked will also check for out-of-date uv.lock file
-      # Note: mypy typecheck and lockfile check will both require main
-      #       dependencies, so don't install just dev
+      # Note: mypy typecheck and lockfile check will both require
+      #       tooling and main dependencies
       - name: Install python dev packages
         if: steps.python-changes.outputs.any_changed == 'true' || github.event_name == 'workflow_dispatch'
-        run: uv sync --dev --locked --no-compile-bytecode
+        run: uv sync --group tooling --locked --no-compile-bytecode
       #
       # Step 5: Run prettier formatter (yaml, json, md)
       - name: Run Prettier formatting checks

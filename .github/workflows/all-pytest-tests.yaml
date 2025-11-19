@@ -30,7 +30,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version-file: "pyproject.toml"
-      # Step 4: Install UV with caching
+      # Step 4: Install UV with caching, keyed on pyproject.toml/uv.lock
       - name: Install UV and enable caching
         uses: astral-sh/setup-uv@v5
         with:
@@ -42,8 +42,8 @@ jobs:
       # Note: using --locked will also check for out-of-date uv.lock file
       # Note: pytest is in tooling group, and tests are in test extra
       - name: Install python dev packages
-        run: uv sync --dev --group tooling --extra test --locked --no-compile-bytecode
-      # Run pytest
+        run: uv sync --group tooling --extra test --locked --no-compile-bytecode
+        # Step 6: Run pytest
       - name: Run pytest
         run: |
           uv run pytest -q
