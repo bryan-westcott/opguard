@@ -28,6 +28,7 @@ runs:
       uses: ./.github/actions/determine-run-steps
       with:
         files-changed-patterns: ${{ inputs.files-changed-patterns }}
+        trigger-event-name: ${{ github.event_name }}
     # Step 2: Detect tool version desired, to match that used for pre-commit
     - name: Get Prettier version from pyproject.toml
       id: tool-version

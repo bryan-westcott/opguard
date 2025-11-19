@@ -19,6 +19,7 @@ runs:
       uses: ./.github/actions/determine-run-steps
       with:
         files-changed-patterns: ${{ inputs.files-changed-patterns }}
+        trigger-event-name: ${{ github.event_name }}
     # Step 2: Run mypy, using dev group dependencies from pyproject.toml
     - name: Run MyPy
       if: steps.check-skip.outputs.run-steps == 'true'
