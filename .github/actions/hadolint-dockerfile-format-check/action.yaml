@@ -7,6 +7,10 @@ inputs:
     type: string
     default: |
       docker/*ockerfile*
+  trigger-event-name:
+    description: "Optional upstream event name"
+    required: false
+    default: ""
 runs:
   using: "composite"
   steps:
@@ -16,7 +20,7 @@ runs:
       uses: ./.github/actions/determine-run-steps
       with:
         files-changed-patterns: ${{ inputs.files-changed-patterns }}
-        trigger-event-name: ${{ github.event_name }}
+        trigger-event-name: ${{ inputs.trigger-event-name || github.event_name }}
     # Step 2: Run Hadolint action
     - name: Run Hadolint
       if: steps.check-skip.outputs.run-steps == 'true'
