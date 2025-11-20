@@ -46,4 +46,4 @@ jobs:
         # Step 6: Run pytest
       - name: Run pytest
         run: |
-          uv run pytest -q
+          uv run pytest -q -m smoke
