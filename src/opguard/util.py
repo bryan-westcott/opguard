@@ -456,8 +456,9 @@ def make_guarded_call(
       re-bound to the same `self` so attribute access inside `call` still sees the
       original instance (i.e., `__self__` is preserved).
     - If `call` is a free function or other callable, a regular wrapper is returned.
-    - Any decorator layers on `call` are unwrapped (`inspect.unwrap`) for accurate
-      metadata and to locate the underlying function for rebinding.
+    - Any decorator layers on call are unwrapped (inspect.unwrap) for accurate
+      metadata and to expose the underlying function used in the bound-method
+      wrapper.
     - Function metadata (`__name__`, `__qualname__`, `__doc__`, annotations, etc.)
       is preserved via `functools.wraps`.
 
@@ -497,33 +498,53 @@ def make_guarded_call(
     >>> c = C()
     >>> g = make_guarded_call(c.f, lambda y: y + 10)
     >>> assert g(2) == (c(2) + 10)
-    >>> assert getattr(g, "__self__", None) != c
+    >>> assert getattr(g, "__self__", None) is c
     """
-    orig: Callable[..., object] = inspect.unwrap(call)
-    self_obj: object | None = getattr(call, "__self__", None)  # present for bound methods
-    base: Callable[..., object] = getattr(call, "__func__", call)  # the original function if bound
+    # For metadata, unwrap down to the base *function* if present
+    # Note: use this only for the wraps decorator!
+    func_obj = getattr(call, "__func__", call)  # function for methods, or call itself
+    # Note: unwrapping here is only for metadata; the actual call still uses
+    #       the passed-in callable so nested wrappers compose correctly.
+    # Note: use of original leads to the potential for nasty recursive wraps
+    meta_fn = inspect.unwrap(func_obj) if inspect.isfunction(func_obj) else func_obj
 
-    if self_obj is not None and inspect.isfunction(base):
-        # BOUND METHOD CASE: keep descriptor semantics by defining a function
-        # that takes `self` explicitly, then bind it back to `self_obj`.
-        @wraps(base)
+    # This will be non-none only for bound methods
+    self_obj: object | None = getattr(call, "__self__", None)
+
+    # BOUND METHOD CASE: keep descriptor semantics by defining a function
+    # that takes `self` explicitly, then bind it back to `self_obj`.
+    if self_obj is not None:
+
+        @wraps(meta_fn)
+        # A wrapper that will preserve the caller's self to the wrapped caller
+        # In other words: if caller.__self__ is used later, it will continue
+        #                 to work seamlessly after wrapping.  That is not the case if
+        #                 a simple wrap_unbound() is used without the
+        #                 types.MethodType() below.
         def _wrapped_bound(self: object, *args: object, **kwargs: object) -> object:
-            out = base(self, *args, **kwargs)  # <-- use the unbound function
+            # func_obj is the underlying function (unbound). We always call it with `self`.
+            # Note: if you try to use call directly, you will insert extra selfs below
+            #       with the MethodType line
+            out = func_obj(self, *args, **kwargs)  # <-- use the unbound function
             return wrapper(out)
 
+        # Now attach self to the wrapped function
         wrapped_call = types.MethodType(_wrapped_bound, self_obj)  # restores __self__
+
+        # Extra safety checks
         if not hasattr(wrapped_call, "__self__"):
             message = "Self object not preserved"
             raise ValueError(message)
         if wrapped_call.__self__.__class__.__name__ != self_obj.__class__.__name__:
             message = "Wrapped caller has self and names do not match"
             raise ValueError(message)
+
         return wrapped_call
 
     # FREE FUNCTION / CALLABLE CASE: no binding to preserve
-    @wraps(base if inspect.isfunction(base) else orig)
+    @wraps(meta_fn)
     def _wrapped_unbound(*args: object, **kwargs: object) -> object:
-        out = orig(*args, **kwargs)
+        out = call(*args, **kwargs)
         return wrapper(out)
 
     return _wrapped_unbound

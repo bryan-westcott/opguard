@@ -23,4 +23,4 @@ for name, obj in vars(_test_mod).items():
 
     # Re-export on this package
     globals()[name] = obj
-    __all__ += [name]
+    __all__ += [name]  # noqa: PLE0604  # ruff not using typehints

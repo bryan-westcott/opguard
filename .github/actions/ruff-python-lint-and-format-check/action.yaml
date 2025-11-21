@@ -1,0 +1,33 @@
+name: Ruff Python Lint and Format Check
+decription: Run ruff python linter and format checker
+inputs:
+  files-changed-patterns:
+    description: File patterns to determine if test needs to run
+    required: false
+    type: string
+    default: |
+      src/**/*.py
+      pyproject.toml
+      uv.lock
+runs:
+  using: "composite"
+  steps:
+    # Step 1: Determine whether to run checks (changes or dispatch trigger)
+    - name: Checks needed if relevant files change or dispatch trigger
+      id: check-skip
+      uses: ./.github/actions/determine-run-steps
+      with:
+        files-changed-patterns: ${{ inputs.files-changed-patterns }}
+    # Step 2: Ruff linting check
+    - name: Ruff linting check
+      if: steps.check-skip.outputs.run-steps == 'true'
+      uses: astral-sh/ruff-action@v3
+      with:
+        version-file: "pyproject.toml"
+    # Step 3: Check format with ruff (black compatible)
+    - name: Ruff black compatible format check
+      if: steps.check-skip.outputs.run-steps == 'true'
+      uses: astral-sh/ruff-action@v3
+      with:
+        args: "format --check"
+        version-file: "pyproject.toml"

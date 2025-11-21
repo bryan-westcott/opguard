@@ -1,0 +1,33 @@
+name: Hadioint Dockerfile Check
+decription: Run hadolint dockerfile checker
+inputs:
+  files-changed-patterns:
+    description: File patterns to determine if test needs to run
+    required: false
+    type: string
+    default: |
+      docker/*ockerfile*
+  trigger-event-name:
+    description: "Optional upstream event name"
+    required: false
+    default: ""
+runs:
+  using: "composite"
+  steps:
+    # Step 1: Determine whether to run checks (changes or dispatch trigger)
+    - name: Checks needed if relevant files change or dispatch trigger
+      id: check-skip
+      uses: ./.github/actions/determine-run-steps
+      with:
+        files-changed-patterns: ${{ inputs.files-changed-patterns }}
+        trigger-event-name: ${{ inputs.trigger-event-name || github.event_name }}
+    # Step 2: Run Hadolint action
+    - name: Run Hadolint
+      if: steps.check-skip.outputs.run-steps == 'true'
+      # Note: hadolint does not appear to support a specific version,
+      #       and the action version is different than the hadolint version
+      #       so just use latest for now
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: "*ockerfile*"
+        recursive: true

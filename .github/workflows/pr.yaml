@@ -1,0 +1,30 @@
+name: PR and Dispatch Checks
+# Run code quality checks and run tests
+# Each step will check for relevant file changes (or dispatch workflow trigger)
+
+# How to use:
+#   Add ruleset for dev to check for two successful status checks for PR push:
+#     * "Run All Code Quality Checks in PR"
+#     * "Docker Images Test Build in PR"
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - ci-cd # use this to test before merging with main
+  workflow_dispatch:
+jobs:
+  # Run all quality checks in a single job (single runner)
+  all-code-checks:
+    name: Run All Code Quality Checks
+    uses: ./.github/workflows/all-code-checks.yaml
+    with:
+      trigger-event-name: ${{ github.event_name }}
+  # Run pytest tests (requires GPU for reasonable coverage)
+  # This is the most expensive step, so only run if all other tests pass
+  all-pytest-tests:
+    name: Run All PyTest Tests
+    uses: ./.github/workflows/all-pytest-tests.yaml
+    secrets: inherit
+    needs: [all-code-checks]

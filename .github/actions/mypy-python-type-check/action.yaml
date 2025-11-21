@@ -1,0 +1,34 @@
+name: Ruff Python Lint and Format Check
+decription: Run ruff python linter and format checker
+inputs:
+  files-changed-patterns:
+    description: File patterns to determine if test needs to run
+    required: false
+    type: string
+    default: |
+      src/**/*.py
+      src/**/*.pyi
+      pyproject.toml
+      uv.lock
+  trigger-event-name:
+    description: "Optional upstream event name"
+    required: false
+    default: ""
+runs:
+  using: "composite"
+  steps:
+    # Step 1: Determine whether to run checks (changes or dispatch trigger)
+    - name: Checks needed if relevant files change or dispatch trigger
+      id: check-skip
+      uses: ./.github/actions/determine-run-steps
+      with:
+        files-changed-patterns: ${{ inputs.files-changed-patterns }}
+        trigger-event-name: ${{ inputs.trigger-event-name || github.event_name }}
+    # Step 2: Run mypy, using dev group dependencies from pyproject.toml
+    - name: Run MyPy
+      if: steps.check-skip.outputs.run-steps == 'true'
+      shell: bash
+      run: |
+        # Note: mypy version determined from pyproject.toml and uv sync
+        # Note: mypy is installed in tooling (along with relevant stubs)
+        uv run --group tooling --extra test mypy src

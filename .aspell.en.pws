@@ -1,4 +1,5 @@
-personal_ws-1.1 en 23
+personal_ws-1.1 en 29
+Colab
 Composable
 ControlNets
 Diffusers
@@ -7,10 +8,14 @@ Jupyter
 Ollama
 OpGuard
 Qdrant
+SDXL
 TLS
 Traefik
+VAEs
 VRAM
+autoencoders
 customizable
+diffusers
 dtype
 dtypes
 eval
@@ -22,3 +27,4 @@ opguard
 pre
 symlinks
 teardown
+variational
