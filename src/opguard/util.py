@@ -514,6 +514,7 @@ def make_guarded_call(
     # BOUND METHOD CASE: keep descriptor semantics by defining a function
     # that takes `self` explicitly, then bind it back to `self_obj`.
     if self_obj is not None:
+
         @wraps(meta_fn)
         # A wrapper that will preserve the caller's self to the wrapped caller
         # In other words: if caller.__self__ is used later, it will continue
@@ -537,7 +538,7 @@ def make_guarded_call(
         if wrapped_call.__self__.__class__.__name__ != self_obj.__class__.__name__:
             message = "Wrapped caller has self and names do not match"
             raise ValueError(message)
-        
+
         return wrapped_call
 
     # FREE FUNCTION / CALLABLE CASE: no binding to preserve
