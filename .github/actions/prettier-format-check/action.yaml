@@ -1,12 +1,12 @@
 name: Prettier Format Check
-decription: Run Prettier format checks (md, json, toml)
+decription: Run Prettier format checks (md, json)
 # Note: ruff will check pyproject.toml and toml support is immature in
 #       prettier so you do not have to include toml files here
 inputs:
   prettier_options:
     description: Options for Prettier
     required: false
-    default: "--check **/*.{md,json,toml} --ignore-path .prettierignore"
+    default: "--check **/*.{md,json} --ignore-path .prettierignore"
   only_changed:
     description: Run only on changed files
     required: false
@@ -18,7 +18,6 @@ inputs:
     default: |
       **/*.md
       **/*.json
-      **/*.toml
   trigger-event-name:
     description: "Optional upstream event name"
     required: false
