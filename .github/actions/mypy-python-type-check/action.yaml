@@ -31,4 +31,4 @@ runs:
       run: |
         # Note: mypy version determined from pyproject.toml and uv sync
         # Note: mypy is installed in tooling (along with relevant stubs)
-        uv run --group tooling mypy src
+        uv run --group tooling --extra test mypy src
