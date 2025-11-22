@@ -18,8 +18,8 @@ from transformers import (
 )
 from transformers.image_processing_base import BatchFeature
 
-from .base import OpGuardBase
-from .util import Detector
+from opguard.base import OpGuardBase
+from opguard.util import Detector
 
 
 class Blip(OpGuardBase):

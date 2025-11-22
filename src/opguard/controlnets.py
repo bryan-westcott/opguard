@@ -16,7 +16,7 @@ from diffusers.pipelines.marigold.pipeline_marigold_depth import MarigoldDepthOu
 from diffusers.pipelines.marigold.pipeline_marigold_normals import MarigoldNormalsOutput
 from PIL.Image import Image as PILImage
 
-from .base import DetectorFactory, OpGuardBase
+from opguard.base import DetectorFactory, OpGuardBase
 
 try:
     # This requires controlnet-aux which can cause conflicts,

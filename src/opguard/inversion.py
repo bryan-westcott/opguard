@@ -14,10 +14,10 @@ from diffusers.pipelines.stable_diffusion_xl.pipeline_output import StableDiffus
 from PIL.Image import Image as PILImage
 from torch import Tensor
 
-from .base import OpGuardBase
-from .nlp import Blip1
-from .util import DetectorFactory
-from .vae import VaeSdxlFp16Fix
+from opguard.base import OpGuardBase
+from opguard.nlp import Blip1
+from opguard.util import DetectorFactory
+from opguard.vae import VaeSdxlFp16Fix
 
 try:
     # This is a specialized module used just for this special purpose,

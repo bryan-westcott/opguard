@@ -13,8 +13,8 @@ from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusion
 from diffusers.pipelines.stable_diffusion_xl.pipeline_output import StableDiffusionXLPipelineOutput
 from PIL.Image import Image as PILImage
 
-from .base import OpGuardBase
-from .vae import VaeSdxlFp16Fix, VaeTinyForSd
+from opguard.base import OpGuardBase
+from opguard.vae import VaeSdxlFp16Fix, VaeTinyForSd
 
 StableDiffusionPipelineLike: TypeAlias = StableDiffusionPipeline | StableDiffusionXLPipeline
 StableDiffusionPipelineOutputLike: TypeAlias = StableDiffusionPipelineOutput | StableDiffusionXLPipelineOutput

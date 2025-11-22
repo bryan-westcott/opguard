@@ -8,7 +8,7 @@ from diffusers import AutoencoderKL, AutoencoderTiny
 from diffusers.image_processor import VaeImageProcessor
 from PIL.Image import Image as PILImage
 
-from .base import OpGuardBase
+from opguard.base import OpGuardBase
 
 
 class AutoencoderBase(OpGuardBase):

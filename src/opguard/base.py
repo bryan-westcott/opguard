@@ -69,7 +69,7 @@ from typing import Any, ClassVar, Literal
 import torch
 from loguru import logger
 
-from .util import (
+from opguard.util import (
     DetectorFactory,
     DeviceLike,
     DeviceMapLike,
