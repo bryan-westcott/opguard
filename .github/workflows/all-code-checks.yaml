@@ -72,7 +72,7 @@ jobs:
       #       tooling and main dependencies
       - name: Install python dev packages
         if: steps.python-changes.outputs.any_changed == 'true' || github.event_name == 'workflow_dispatch'
-        run: uv sync --group tooling --locked --no-compile-bytecode
+        run: uv sync --group tooling --extra test --locked --no-compile-bytecode
       #
       # Step 5: Run prettier formatter (yaml, json, md)
       - name: Run Prettier formatting checks

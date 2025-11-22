@@ -246,6 +246,7 @@ repos:
     rev: v0.20.0
     hooks:
       - id: yamlfmt
+        types_or: [yaml]
   #
   # ---------------------------------------------------------
   # yamllint - check yaml files
