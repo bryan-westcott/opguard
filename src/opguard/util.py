@@ -84,18 +84,23 @@ if TYPE_CHECKING:
     from contextlib import AbstractContextManager
 
 import torch
-from diffusers import BitsAndBytesConfig as DiffusersBitsAndBytesConfig
 from huggingface_hub import HfApi, snapshot_download
 from huggingface_hub.file_download import repo_folder_name
 from huggingface_hub.utils import LocalEntryNotFoundError
 from loguru import logger
-from transformers import BitsAndBytesConfig as TransformersBitsAndBytesConfig
 
 # ---------- type aliases (Py 3.11) ----------
+
+if TYPE_CHECKING:
+    from diffusers import BitsAndBytesConfig as DiffusersBitsAndBytesConfig
+    from transformers import BitsAndBytesConfig as TransformersBitsAndBytesConfig
+
+    QuantConfigLike: TypeAlias = TransformersBitsAndBytesConfig | DiffusersBitsAndBytesConfig
+
+
 DTypeLike: TypeAlias = str | torch.dtype
 DeviceLike: TypeAlias = int | str | torch.device
 DeviceMapLike: TypeAlias = str | Mapping[str, DeviceLike]
-QuantConfigLike: TypeAlias = TransformersBitsAndBytesConfig | DiffusersBitsAndBytesConfig
 
 # for detach function
 DetachFn = Callable[[object], object]
@@ -1655,6 +1660,7 @@ def quant_guard(
     backend: str = "bnb",
 ) -> QuantConfigLike | None:
     """Determine quantization parameters, and if supported by hardware."""
+    # ruff: noqa: PLC0415  # expensive to import diffusers, transformers just for BitsAndBytesConfig
     if quant_config_override is not None:
         logger.trace(f"Using existing {quant_config_override=}")
         return quant_config_override
@@ -1693,8 +1699,12 @@ def quant_guard(
     module = getattr(model_type, "__module__", "None")
     base_module = module.split(".")[0]
     if base_module == "diffusers":
+        from diffusers import BitsAndBytesConfig as DiffusersBitsAndBytesConfig
+
         config_obj_type = DiffusersBitsAndBytesConfig
     elif base_module == "transformers":
+        from transformers import BitsAndBytesConfig as TransformersBitsAndBytesConfig
+
         config_obj_type = TransformersBitsAndBytesConfig
     else:
         message = f"Invalid base_module for {module=}, cannot determine if transformers or diffusers"
