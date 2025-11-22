@@ -130,6 +130,23 @@ Finally, run smoke tests:
 
 - `from opguard.tests import smoke; smoke()`
 
+### Testing and profiling
+
+- PyTest test are available in `tests/test.py`:
+  - Smoke test (no GPU required): `pytest -m smoke`
+  - Pass-through test (for profiling): `pytest -m trivial`
+  - Slower tests (4GB VRAM): `pytest -m slow`
+  - Larger tests (8GB+ VRAM): `pytest -m large`
+  - Full coverage: `pytest -m full`
+
+- Profiling with `torch`:
+  - Overhead timing (no inference, no transformers/diffusers):
+    - `python -m torch.utils.bottleneck src/opguard/tests/trivial.py`
+  - Library timing inclusive (lightweight diffusers models):
+    - `python -m torch.utils.bootleneck src/opguard/tests/smoke.py`
+  - Inference timing inclusive (large diffusers and transformers models):
+    - `python -m torch.utils.bottleneck src/opguard/tests/large.py`
+
 ### ⚖️ License & attribution
 
 Apache 2.0
