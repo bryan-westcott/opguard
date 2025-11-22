@@ -92,6 +92,7 @@ from loguru import logger
 from transformers import BitsAndBytesConfig as TransformersBitsAndBytesConfig
 
 # ---------- type aliases (Py 3.11) ----------
+DTypeLike: TypeAlias = str | torch.dtype
 DeviceLike: TypeAlias = int | str | torch.device
 DeviceMapLike: TypeAlias = str | Mapping[str, DeviceLike]
 QuantConfigLike: TypeAlias = TransformersBitsAndBytesConfig | DiffusersBitsAndBytesConfig
@@ -378,7 +379,7 @@ _DTYPE_ALIASES: dict[str, torch.dtype] = {
 }
 
 
-def normalize_dtype(dtype: str | torch.dtype) -> torch.dtype:
+def normalize_dtype(dtype: DTypeLike) -> torch.dtype:
     """Convert from a string torch dtype representation to actual torch.dtype.
 
     examples:
