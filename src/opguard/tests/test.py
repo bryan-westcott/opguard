@@ -3,389 +3,68 @@
 To run, with debugging:     uv run pytest --log-cli-level=DEBUG --capture=no
 """
 
+# ruff: noqa: PLC0415  # try to keep heavy imports restricted to when needed for testing/profiling
+
+
 # We do not care about LSP substitutability, OpGuard is not used directly
 # mypy: disable-error-code=override
 
-from typing import Any
+from __future__ import annotations
 
-import numpy as np
-import PIL
+from typing import TYPE_CHECKING, Any
+
 import pytest
-import requests
-import torch
-from huggingface_hub import hf_hub_download
 from loguru import logger
-from PIL.Image import Image as PILImage
-from PIL.Image import blend, fromarray
 
-from opguard.controlnets import (
-    DepthControlnet,
-    DwposeDetector,
-    HedDetector,
-    MarigoldDepthDetector,
-    MarigoldNormalsDetector,
-    TileControlnet,
-    TileDetector,
-    UnionControlnet,
-    UnionPromaxControlnet,
-)
-from opguard.inversion import InversionSdxl, InversionSdxlReconstruct
-from opguard.nlp import Blip1, Blip2_4Bit, Blip2_16Bit
-from opguard.sd import SdTinyNanoTextToImage, SdxlTextToImage
-from opguard.vae import VaeSdxlFp16Fix, VaeTinyForSd
+if TYPE_CHECKING:
+    import torch
+
+    TorchDeviceLike = str | torch.device
+    DTypeLike = torch.dtype
+else:
+    # At runtime, we don't actually care about the precise type;
+    # this keeps annotations happy and avoids importing torch.
+    TorchDeviceLike = str | Any
+    DTypeLike = Any
 
 
-def load_test_image(
-    *,
-    hub_repo_id: str | None = None,
-    hub_filename: str | None = None,
-    hub_revision: str | None = None,
-    final_size: tuple[int, int] | None = None,
-    local_files_only: bool = False,
-    allow_direct_download: bool = True,
-    image_passthrough: PILImage | None = None,
-    image_url_override: str | None = None,
-) -> PILImage:
-    """Test image loader.
+@pytest.mark.trivial
+def trivial() -> None:
+    """Simplest run without inference (no CPU/GPU needed)."""
+    # Note: same as single vae run but always CPU
+    from opguard.tests.trivial import trivial as _trival
 
-    Load a small test image with Hugging Face Hub caching and an optional
-    direct-URL fallback. A pre-supplied image can bypass all I/O.
-
-    Resolution order
-    1) If `image_passthrough` is provided, return it as-is.
-    2) Try `hf_hub_download(repo_type='dataset')` for
-       `{hub_repo_id}::{hub_filename}` at `hub_revision`
-       (honors `local_files_only`).
-    3) If that fails and `allow_direct_download=True`, fetch via HTTPS from
-       `image_url_override` or a resolve-URL derived from the Hub fields.
-
-    Parameters
-    ----------
-    hub_repo_id : str | None, default="YiYiXu/testing-images"
-        Dataset repo containing the image.
-    hub_filename : str | None, default="women_input.png"
-        File path/name within the dataset repo.
-    hub_revision : str | None, default="main"
-        Branch/tag/commit. For reproducibility, prefer a commit hash.
-    final_size : tuple[int, int] | None, optional
-        If given, resize to (width, height) before returning.
-    local_files_only : bool, default=False
-        Passed to `hf_hub_download`. When True, only uses files already in the
-        local HF cache (no network).
-    allow_direct_download : bool, default=True
-        Whether to attempt an HTTPS fallback if the Hub fetch fails.
-    image_passthrough : PIL.Image.Image | None, optional
-        Pre-loaded image to return immediately (skips Hub/HTTP).
-    image_url_override : str | None, optional
-        Explicit HTTPS URL to use for the fallback download. If not set, a
-        resolve-URL is constructed from the Hub fields.
-
-    Returns
-    -------
-    PIL.Image.Image
-        An RGB image, possibly resized.
-
-    Raises
-    ------
-    ValueError
-        If the image cannot be obtained from any source.
-
-    Notes
-    -----
-    - To enable offline use (`local_files_only=True`), call at least once with
-      `local_files_only=False` so the asset is cached locally
-      (typically under `~/.cache/huggingface/hub`).
-    - `hub_revision` should be pinned to a commit hash for deterministic tests.
-
-    Examples
-    --------
-    # Online first run (caches file), offline thereafter
-    img = load_test_image(local_files_only=False)
-    img_offline = load_test_image(local_files_only=True)
-
-    # Use a specific dataset file and commit
-    img = load_test_image(
-        hub_repo_id="hf-internal-testing/diffusers-images",
-        hub_filename="flag/mini.png",
-        hub_revision="7f6d1c1",  # commit hash
-    )
-
-    # Provide your own image to bypass I/O
-    img = load_test_image(image_passthrough=PIL.Image.new("RGB", (64, 64), "white"))
-    """
-    # ruff: noqa: PLR0913  (this is a test helper)
-    # Huggingface hub repo information
-    hub_repo_id = hub_repo_id or "YiYiXu/testing-images"
-    hub_filename = hub_filename or "women_input.png"
-    hub_revision = hub_revision or "main"
-    # Backup method, construct direct URL from hub information
-    image_url = (
-        image_url_override or f"https://huggingface.co/datasets/{hub_repo_id}/resolve/{hub_revision}/{hub_filename}"
-    )
-
-    # Obtain from passthrough if provided
-    image = image_passthrough
-
-    if not image:
-        # first try huggingface hub module,
-        # will download and cache on very first call
-        try:
-            path = hf_hub_download(
-                repo_id=hub_repo_id,
-                filename=hub_filename,
-                repo_type="dataset",  # important: it's a dataset repo
-                revision=hub_revision,  # or pin a commit hash for reproducibility
-                local_files_only=local_files_only,
-            )
-            image = PIL.Image.open(path).convert("RGB")
-            logger.debug("Obtained test image from HF Hub download or cache")
-        except RuntimeError:
-            logger.warning("HF Hub Download failed")
-
-    if not image and allow_direct_download:
-        # then try direct download, constructing URL based on hub info
-        try:
-            image = PIL.Image.open(requests.get(image_url, stream=True, timeout=(3.0, 30.0)).raw)
-            logger.debug("Obtained test image from direct URL download")
-        except RuntimeError:
-            logger.warning("Direct download failed")
-
-    if not image:
-        # No alternatives remaining
-        message = "Unable to obtain test image"
-        raise ValueError(message)
-
-    if final_size:
-        # Resize if needed
-        image = image.resize(final_size)
-
-    return image
-
-
-def hstack_numpy(images: list[PILImage]) -> PILImage:
-    """Stack images horizontally using NumPy arrays."""
-    arrays = [np.asarray(img.convert("RGB")) for img in images]
-    stacked = np.hstack(arrays)
-    return fromarray(stacked)
-
-
-def _sdxl_vae_roundtrip(*, device: str | torch.device = "cuda", dtype: torch.dtype = torch.bfloat16, **kwargs) -> None:
-    """Tiny round-trip VAE that exercises OpGuard with various device/dtypes."""
-    # ruff: noqa: ANN003  (too restrictive on tests)
-
-    with VaeSdxlFp16Fix(device_override=device, dtype_override=dtype, **kwargs) as vae:
-        logger.debug(
-            f"Running vae-for-sdxl roundtrip test for {type(vae).__name__} with: {device=}, {dtype=}, {kwargs=}",
-        )
-        input_image = load_test_image(final_size=(512, 512), allow_direct_download=False)
-        output_image = vae(input_raw=input_image, mode="encode-decode")
-    assert input_image.size == output_image.size
-
-
-def _tiny_vae_roundtrip(*, device: str | torch.device, dtype: torch.dtype, **kwargs) -> None:
-    """Tiny round-trip VAE that exercises OpGuard with various device/dtypes."""
-    # ruff: noqa: ANN003  (too restrictive on tests)
-    with VaeTinyForSd(device_override=device, dtype_override=dtype, **kwargs) as vae:
-        logger.debug(f"Running vae-tiny roundtrip test for {type(vae).__name__} with: {device=}, {dtype=}, {kwargs=}")
-        input_image = load_test_image(final_size=(512, 512), allow_direct_download=False)
-        output_image = vae(input_raw=input_image, mode="encode-decode")
-    assert input_image.size == output_image.size
-
-
-def _tiny_vae_roundtrip_sequence(*, device: str | torch.device, dtype: torch.dtype) -> None:
-    """Test tiny VAE round trip, but also exercise local export caching."""
-    # run it once, forcing refresh of export and remote variant check
-    logger.debug("Running with forced export refresh (1/3)")
-    _tiny_vae_roundtrip(device=device, dtype=dtype, local_hfhub_variant_check_only=False, force_export_refresh=True)
-    # then run with defaults
-    logger.debug("Running with default cache handling (2/3)")
-    _tiny_vae_roundtrip(device=device, dtype=dtype)
-    # then explicitly force use of local cache export and variant check
-    logger.debug("Running with export only (3/3)")
-    _tiny_vae_roundtrip(device=device, dtype=dtype, local_hfhub_variant_check_only=True, only_load_export=True)
-
-
-def blip(
-    *,
-    test_image: PILImage | None = None,
-    test_blip1: bool = True,
-    test_blip2_4bit: bool = True,
-    test_blip2_16bit: bool = True,
-) -> dict[str, Any]:
-    """Test NLP objects."""
-    test_image = test_image or load_test_image()
-    return_blip1 = {}
-    return_blip2 = {}
-    if test_blip2_16bit:
-        with Blip2_16Bit() as blip2:
-            caption_blip2 = blip2(input_raw=test_image)
-            logger.debug(f"blip2: {caption_blip2}")
-            caption_blip2_conditional = blip2(
-                input_raw=test_image,
-                text="Question: What color is her hair? Answer:",
-            )
-            logger.debug(f"blip2 (question): {caption_blip2_conditional}")
-            return_blip2 = {
-                "caption_blip2": caption_blip2,
-                "caption_blip2_conditional": caption_blip2_conditional,
-            }
-    if test_blip2_4bit:
-        with Blip2_4Bit() as blip2:
-            caption_blip2 = blip2(input_raw=test_image)
-            logger.debug(f"blip2: {caption_blip2}")
-            caption_blip2_conditional = blip2(
-                input_raw=test_image,
-                text="Question: What color is her hair? Answer:",
-            )
-            logger.debug(f"blip2 (question): {caption_blip2_conditional}")
-            return_blip2 = {
-                "caption_blip2": caption_blip2,
-                "caption_blip2_conditional": caption_blip2_conditional,
-            }
-    if test_blip1:
-        with Blip1() as blip1:
-            caption_blip1 = blip1(input_raw=test_image)
-            logger.debug(f"blip1 (blip1): {caption_blip1}")
-            text_blip1 = "Hair Color"
-            caption_blip1_conditional = blip1(input_raw=test_image, text=text_blip1)
-            logger.debug(f'blip1 (text="{text_blip1}"): {caption_blip1_conditional}')
-            return_blip1 = {
-                "caption_blip1": caption_blip1,
-                "caption_blip1_conditional": caption_blip1_conditional,
-            }
-    return return_blip1 | return_blip2
-
-
-def sdxl() -> None:
-    """Test SDXL."""
-    prompt = "An astronaut on a horse on the moon."
-    with SdxlTextToImage() as sdxl:
-        image = sdxl(input_raw=prompt)
-    # check for image output, with some width/height and not all zeros.
-    assert isinstance(image, PILImage)
-    assert all(dim > 0 for dim in image.size)
-    assert len(np.unique(np.array(image).ravel())) > 1
-
-
-def sd_tiny() -> None:
-    """Test SD 21 Nano 4-Bit Quantized that runs in 2 GiB VRAM.
-
-    Warning: designed for demo tests purposes only!
-    """
-    prompt = "An astronaut on a horse on the moon."
-    with SdTinyNanoTextToImage() as sd:
-        image = sd(input_raw=prompt, height=128, width=128)
-    # check for image output, with some width/height and not all zeros.
-    assert isinstance(image, PILImage)
-    assert all(dim > 0 for dim in image.size)
-    assert len(np.unique(np.array(image).ravel())) > 1
-    image.save("sd21-test.png")
-
-
-def controlnets(test_image: PILImage | None = None) -> dict[str, Any]:
-    """Test ControlNets objects."""
-    test_image = test_image or load_test_image()
-    display_size = (512, 512)
-    control_types = (
-        TileDetector,
-        TileControlnet,
-        HedDetector,
-        MarigoldDepthDetector,
-        DepthControlnet,
-        UnionControlnet,
-        UnionPromaxControlnet,
-        MarigoldNormalsDetector,
-        DwposeDetector,
-    )
-    control_outputs = []
-    return_control = {}
-    for control_type in control_types:
-        logger.info(f"Running controlnet test: {control_type}")
-        try:
-            if control_type in (MarigoldDepthDetector, MarigoldNormalsDetector):
-                logger.warning("Skipping marigold control tests due lack of CUDA/GPU")
-                continue
-            with control_type() as control:
-                control_output = None
-                if control.IS_CALLABLE:
-                    control_output = control(input_raw=test_image).resize(display_size)
-                control_outputs.append(control_output)
-                return_control[control.NAME] = control_output
-        except torch.OutOfMemoryError:
-            logger.error(f"OUT OF MEMORY FOR {control_type}, skipping")
-    return return_control
-
-
-def sdxl_inversion(
-    test_image: PILImage | None = None,
-    generated_caption: str | None = None,
-) -> dict[str, Any]:
-    """Test Inversion and Reconstruction objects."""
-    display_size = (512, 512)
-    test_image = test_image or load_test_image()
-    if not generated_caption:
-        with Blip1() as blip1:
-            generated_caption = blip1(input_raw=test_image)
-    with InversionSdxl() as inversion:
-        inverse_latent, inverse_config, inverse_caption = inversion(
-            input_raw=test_image,
-            generated_caption=generated_caption,
-        )
-        logger.debug(inverse_latent.shape)
-        logger.debug(inversion.extra_info["sdxl_model_name"])
-        return_inverse = {
-            "inverse_latent": inverse_latent,
-            "inverse_config": inverse_config,
-            "inverse_caption": inverse_caption,
-        }
-    with InversionSdxlReconstruct() as recon:
-        reconstructed_image, reconstructed_config = recon(
-            input_raw=inverse_latent,
-            inverse_config=inverse_config,
-            inverse_caption=inverse_caption,
-        )
-        logger.debug(reconstructed_image.size)
-        return_reconstructed = {
-            "reconstructed_image": reconstructed_image,
-            "reconstructed_config": reconstructed_config,
-        }
-    blend_image = blend(reconstructed_image.resize(display_size), test_image.resize(display_size), 0.5)
-    image_grid = [
-        reconstructed_image.resize(display_size),
-        test_image.resize(display_size),
-        blend_image.resize(display_size),
-    ]
-    stacked_images = hstack_numpy(image_grid)
-    stacked_images.save("inversion-test.png")
-    return return_inverse | return_reconstructed | {"test_image": test_image} | {"image_grid": image_grid}
+    _trival()
 
 
 @pytest.mark.smoke
 def smoke() -> None:
-    """Simplest run (no CUDA/GPU needed)."""
+    """Simplest run with inference (no CUDA/GPU needed)."""
     # Note: same as single vae run but always CPU
-    logger.info("Running 'smoke' tests")
-    _tiny_vae_roundtrip(
-        device="cpu",
-        dtype=torch.float32,
-        local_hfhub_variant_check_only=False,
-        force_export_refresh=True,
-    )
+    from opguard.tests.smoke import smoke as _smoke
+
+    _smoke()
 
 
 @pytest.mark.cpu
 def cpu() -> None:
     """Test CPU mode, full precision."""
+    from opguard.tests.vae import tiny_vae_roundtrip_sequence
+
     logger.info("Running 'cpu' tests")
-    _tiny_vae_roundtrip_sequence(device="cpu", dtype=torch.float32)
+    tiny_vae_roundtrip_sequence(device="cpu", dtype="float32")
 
 
 @pytest.mark.gpu
 def gpu() -> None:
     """Test GPU mode, half-precision."""
+    import torch
+
+    from opguard.tests.vae import tiny_vae_roundtrip_sequence
+
     logger.info("Running 'gpu' tests")
     if torch.cuda.is_available():
-        _tiny_vae_roundtrip_sequence(device="cuda", dtype=torch.float16)
+        tiny_vae_roundtrip_sequence(device="cuda", dtype="float16")
     else:
         logger.warning("Unable to run GPU tests due to loack of CUDA/GPU")
 
@@ -396,9 +75,13 @@ def bfloat() -> None:
 
     Note: will fail if no GPU, and fallback to float16 if insufficient compute capability.
     """
+    import torch
+
+    from opguard.tests.vae import tiny_vae_roundtrip_sequence
+
     logger.info("Running 'bfloat' tests")
     if torch.cuda.is_available():
-        _tiny_vae_roundtrip_sequence(device="cuda", dtype=torch.bfloat16)
+        tiny_vae_roundtrip_sequence(device="cuda", dtype="bfloat16")
     else:
         logger.warning("Unable to run BFLOAT16 tests due to loack of CUDA/GPU")
 
@@ -409,9 +92,13 @@ def fp16vae() -> None:
 
     Note: will fail if no GPU, and fallback to float16 if insufficient compute capability.
     """
+    import torch
+
+    from opguard.tests.vae import sdxl_vae_roundtrip
+
     logger.info("Running 'fp16vae' tests")
     if torch.cuda.is_available():
-        _sdxl_vae_roundtrip(
+        sdxl_vae_roundtrip(
             local_hfhub_variant_check_only=False,
             force_export_refresh=True,
         )
@@ -422,6 +109,8 @@ def fp16vae() -> None:
 @pytest.mark.nlp
 def nlp() -> None:
     """Test BLIP1 captioner."""
+    from opguard.tetsts.nlp import blip
+
     logger.info("Running 'nlp' smaller tests")
     blip(test_blip1=True, test_blip2_4bit=True, test_blip2_16bit=False)
 
@@ -429,6 +118,8 @@ def nlp() -> None:
 @pytest.mark.nlpxl
 def nlpxl() -> None:
     """Test BLIP2 captioner."""
+    from opguard.tetsts.nlp import blip
+
     logger.info("Running 'nlp' large tests")
     blip(test_blip1=False, test_blip2_4bit=False, test_blip2_16bit=True)
 
@@ -436,6 +127,10 @@ def nlpxl() -> None:
 @pytest.mark.sd
 def sd() -> None:
     """Test tiny SD."""
+    import torch
+
+    from opguard.tests.sd import sd_tiny
+
     logger.info("Running 'sd' tests")
     if torch.cuda.is_available():
         sd_tiny()
@@ -446,13 +141,17 @@ def sd() -> None:
 @pytest.mark.control
 def control() -> None:
     """Test various controlnets."""
+    from opguard.tests.controlnets import control
+
     logger.info("Running 'control' tests")
-    controlnets()
+    control()
 
 
 @pytest.mark.inversion
 def inversion() -> None:
     """Test inversion."""
+    from opguard.tests.inversion import sdxl_inversion
+
     logger.info("Running 'inversion' tests")
     sdxl_inversion(test_image=None, generated_caption=None)
 
@@ -470,6 +169,8 @@ def vae() -> None:
 @pytest.mark.slow
 def slow() -> None:
     """Slower tests, checks basic caching and multiple precision/devices."""
+    import torch
+
     if not torch.cuda.is_available():
         logger.warning("Some tests will be skipped due to lack of CUDA/GPU")
     logger.info("Running 'slow' meta test set")
@@ -481,6 +182,10 @@ def slow() -> None:
 @pytest.mark.large
 def large() -> None:
     """Large VRAM tests, runs large models."""
+    import torch
+
+    from opguard.tests.sd import sdxl
+
     if not torch.cuda.is_available():
         logger.warning("Some tests will be skipped due to lack of CUDA/GPU")
     logger.info("Running 'slow' meta test set")
