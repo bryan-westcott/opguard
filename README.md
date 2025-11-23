@@ -116,7 +116,7 @@ with TinyVAE() as vae:
 
 ---
 
-### ⚖️ Running on Google Colab
+### ⚙️ Running on Google Colab
 
 If `!pip freeze | grep torch` shows `torch==2.8.0+cu126`:
 
@@ -130,7 +130,7 @@ Finally, run smoke tests:
 
 - `from opguard.tests import smoke; smoke()`
 
-### Testing and profiling
+### 🔍 Testing and profiling
 
 - PyTest test are available in `tests/test.py`:
   - Smoke test (no GPU required): `pytest -m smoke`
@@ -146,6 +146,59 @@ Finally, run smoke tests:
     - `python -m torch.utils.bootleneck src/opguard/tests/smoke.py`
   - Inference timing inclusive (large diffusers and transformers models):
     - `python -m torch.utils.bottleneck src/opguard/tests/large.py`
+
+### ❓ How does it work?
+
+There are many features provided by this module, but two of the more difficult to get correct are the following:
+
+#### VRAM Management
+
+OpGuard implements a strict cleanup pipeline based on the behavior in `util.py` and `OpGuardBase`. It ensures that long-running Torch and Transformers/Diffusers sessions do not leak VRAM. This can occur when references to objects on GPU prevent proper freeing, such as detached outputs or exceptions and is especially problematic with notebooks (where the solution is often to restart the kernel and lose all intermediate work).
+
+1. Sanitized exceptions
+   Exceptions are scrubbed so that traceback frames and their local variables do not retain references to tensors or model objects. This prevents VRAM from being pinned after an error.
+
+2. Deep output detachment
+   All outputs are recursively detached and moved to CPU. This removes autograd graphs and guarantees that no GPU references survive past the call boundary.
+
+3. Deterministic synchronization
+   All CUDA devices resolved by device_guard are synchronized before cleanup. This ensures predictable behavior and prevents cleanup from racing with in-flight kernels.
+
+4. Aggressive cleanup
+   After synchronization, OpGuard runs garbage collection and clears CUDA
+   memory using `torch.cuda.empty_cache()`. Cleanup happens even on exceptions
+   because these steps execute in finally blocks. As overly aggressive garbage
+   collection can slow processing, the garbage collection (and
+   sync/cache-clearing) will by default only occurs on exception or free; for
+   normal operation we rely on output detachment.
+
+5. Lazy loading
+   The base object supports deferred (lazy) loading until call and (optional) post-call freeing (with all the above protections) to allow multiple models to more effectively share VRAM.
+
+This prevents the usual VRAM degradation that occurs in notebooks and services when stale tensors or tracebacks accumulate.
+
+---
+
+#### Model Caching
+
+OpGuard uses a deterministic, signature-based caching system built from the helpers in `util.py`. This avoids accidental cache hits, remote pulls, and inconsistent model variants.
+
+1. Variant and precision detection
+   OpGuard inspects HuggingFace variants and maps them to explicit export variants such as `fp16`, `bf16`, `i8`, `fp4`, or `nf4`. Export directories encode these choices directly.
+
+2. Precision-aware local exports
+   When a model is converted or quantized, OpGuard writes it to a stable export directory with metadata describing its cache signature.
+
+3. Deterministic cache keys
+   Cache signatures are based on the loader function fingerprint, normalized arguments, model id, device, dtype, and variant. This ensures cached exports are refreshed when code or settings change.
+
+4. Match or refresh
+   If an export matches the expected signature, OpGuard loads it locally. If not, it reloads the model, rebuilds the export, and updates metadata.
+
+5. Strict locality
+   When local_files_only or only_load_export is enabled, OpGuard never performs remote pulls. All variant detection and loading occurs locally.
+
+This produces reproducible, offline-safe, and revision-stable model loading across environments.
 
 ### ⚖️ License & attribution
 
