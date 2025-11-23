@@ -627,7 +627,8 @@ class OpGuardBase(ABC):
         logger.debug(f"Running inference (call) for {self.NAME}...")
         with self.lazy_loader_context():
             # Autocast for proper precision, accounting for gradient needs, also stream synchronize
-            # Note: dtype and device guard are already pre-checked in init
+            # Note: dtype and device guard are already pre-checked in init.
+            # Note: the options for garbage collect on success/failure revert to defaults
             with call_guard(
                 need_grads=self.NEED_GRADS,
                 sanitize_all_exceptions=self.sanitize_all_exceptions,

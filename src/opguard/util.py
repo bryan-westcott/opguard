@@ -2123,14 +2123,18 @@ def vram_guard(
     sanitize_all_exceptions: bool = True,
     detach_outputs: bool = True,
     caller_fn: Callable[..., object] | None = None,
+    garbage_collect_on_exception: bool = True,
+    garbage_collect_on_success: bool = False,
 ) -> Iterator[Callable]:
     """Sync/sanitize/cleanup wrapper across all devices, where applicable.
 
     Features:
-    * applies to_cpu/detach for all outputs
-        - a deepcopy is problematic for memory use and synchronization
+    * applies a deep to_cpu/detach for all outputs
+        - a simple deepcopy is problematic for memory use and synchronization so we
+          handle it more carefully, while still preserving deep inspection
     * synchronizes (and waits on) all devices used and sanitze/re-throw exceptions
     * memory cleanup at the end: garbage collection and torch cache clear (in proper order)
+        - by default it garbage collects only on exceptions not successes
     * handles exceptions gracefully
 
     Warning:
@@ -2148,6 +2152,7 @@ def vram_guard(
         with vram_guard(device_list=device_list, detach_outputs=True) as detach:
             out = detach(run_model(...))
     """
+    exception_raised: bool = False
     try:
         if caller_fn is not None:
             logger.trace(f"Guarding {caller_fn=} with {detach_outputs=} in vram_guard")
@@ -2166,6 +2171,7 @@ def vram_guard(
                 torch.cuda.synchronize(dev)
     except Exception as e:
         # Sanitize and re-raise exception
+        exception_raised = True
         logger.trace("Exception inside vram_guard guarded execution")
         if sanitize_all_exceptions:
             # Log full traceback
@@ -2177,9 +2183,10 @@ def vram_guard(
         raise
     finally:
         logger.trace("Performing vram_guard cleanup")
+        do_garbage_collect = garbage_collect_on_exception if exception_raised else garbage_collect_on_success
         sync_gc_and_cache_cleanup(
             do_sync=True,
-            do_garbage_collect=True,
+            do_garbage_collect=do_garbage_collect,
             do_empty_cache=True,
             suppress_errors=True,
             device_list=device_list,
