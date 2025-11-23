@@ -2,6 +2,9 @@
 
 # ruff: noqa: PLC0415  # try to keep heavy imports restricted to when needed for testing/profiling
 
+# We do not care about LSP substitutability, OpGuard is not used directly
+# mypy: disable-error-code=override
+
 from collections.abc import Callable
 from typing import cast
 
