@@ -1,0 +1,37 @@
+
+# Contributor License Agreement (Minimal)
+
+Thank you for your interest in contributing to this project.
+
+By submitting a pull request, you agree to the following terms:
+
+1. **Your Contribution**
+   You represent that each of your contributions is an original work, and you
+   have the necessary rights to submit it under the project's license
+   (Apache License 2.0).
+
+2. **License Grant**
+   You grant the Project Authors a perpetual, worldwide, non-exclusive,
+   royalty-free, irrevocable license to use, reproduce, modify, distribute,
+   and sublicense your contributions as part of the project.
+
+3. **Patent Grant**
+   You grant the Project Authors and all users of the project an irrevocable,
+   perpetual, worldwide, royalty-free patent license on any patent claims you
+   own or control that are necessarily infringed by your contribution.
+
+4. **No Additional Obligations**
+   You provide your contribution **AS IS**, without warranties or conditions
+   of any kind, and without any expectation of compensation or attribution
+   beyond what is required by the project license.
+
+5. **Certification**
+   By making a contribution, you certify the following:
+   - The contribution is your own work, or you have the right to submit it.
+   - You agree to license your contribution under the Apache License 2.0.
+   - You are not knowingly submitting code that infringes any third-party
+     intellectual property rights.
+
+**How to accept this CLA:**
+By opening a pull request, commenting “I agree,” or including a "Signed-off-by" line,
+you agree to the terms of this Contributor License Agreement.
