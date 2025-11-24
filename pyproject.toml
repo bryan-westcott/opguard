@@ -138,7 +138,7 @@ markers = [
     "smoke: fast smoke tests that run on CPU",
     "trival: fast tests with trivail passthrough detector",
     "nlp: opt-in blip1 tests",
-    "sd: opt-in sdxl tests",
+    "sd: opt-in stable diffusion tests",
     "control: opt-in controlnets tests",
     "vae: opt-in vae tests",
     "cpu: opt-in cpu test with caching using tiny vae",
