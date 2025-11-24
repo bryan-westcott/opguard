@@ -90,6 +90,7 @@ build-backend = "setuptools.build_meta"
 # entrypoint for tests
 [project.scripts]
 # quick
+pytest-trivial = "opguard.tests.test:trivial"
 pytest-smoke = "opguard.tests.test:smoke"
 # individual slow
 pytest-vae = "opguard.tests.test:vae"
@@ -116,7 +117,7 @@ pytest-full = "opguard.tests.test:full"
 testpaths = ["src/opguard/tests"]
 python_files = ["test.py"]
 # collect functions for possible use
-python_functions = ["smoke", "cpu", "gpu", "bfloat16", "vae", "fp16vae", "nlp", "sd", "control", "nlpxl", "sdxl", "inversion", "slow", "large", "full"]
+python_functions = ["smoke", "trivial", "cpu", "gpu", "bfloat16", "vae", "fp16vae", "nlp", "sd", "control", "nlpxl", "sdxl", "inversion", "slow", "large", "full"]
 # Default flags: no stdout spam, show locals on failure, fail on unknown marks
 addopts = """
   -q
@@ -135,8 +136,9 @@ addopts = """
 # Selectively run with: pytest -m <marker>
 markers = [
     "smoke: fast smoke tests that run on CPU",
+    "trival: fast tests with trivail passthrough detector",
     "nlp: opt-in blip1 tests",
-    "sd: opt-in sdxl tests",
+    "sd: opt-in stable diffusion tests",
     "control: opt-in controlnets tests",
     "vae: opt-in vae tests",
     "cpu: opt-in cpu test with caching using tiny vae",

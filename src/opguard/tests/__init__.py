@@ -6,7 +6,7 @@ from __future__ import annotations
 # Import all marked tests in test.py
 # Note: this allows import from opguard.tests, such as:
 # >>> from opguard.tests import smoke
-from . import test as _test_mod
+from opguard.tests import test as _test_mod
 
 __all__: list[str] = []
 

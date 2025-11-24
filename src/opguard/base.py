@@ -59,26 +59,32 @@ Minimal example: this will apply all the guards (with default options)
 #   We don't use polymorphic calls through the base, so substitutability doesn't apply.
 #   Note: this must be in all derived classe to avoid contravariance errors
 
+from __future__ import annotations
+
 import inspect
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from inspect import isabstract
-from typing import Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
 
 import torch
 from loguru import logger
 
-from .util import (
+from opguard.util import (
     DetectorFactory,
     DeviceLike,
     DeviceMapLike,
-    QuantConfigLike,
     call_guard,
     free_guard,
     init_guard,
     load_guard,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Generator
+
+    # Only on type checking as it pulls in diffusers and transformers
+    from opguard.util import QuantConfigLike
 
 
 class OpGuardBase(ABC):
@@ -197,7 +203,7 @@ class OpGuardBase(ABC):
     #       passing kwargs to super()._load_detector(kwargs) in
     #       overridden load_detector()
     FROM_PRETRAINED_ADDITIONAL_KWARGS: ClassVar[dict[str, Any]] = {}
-    # quantization type (see util.SUPPORTED_QUANT_TYPES)
+    # quantization type (Should be QuantConfigLike or None)
     DEFAULT_QUANT_TYPE: QuantConfigLike | None = None
     # double quantization for 4-bit
     DEFAULT_QUANT_USE_DOUBLE: bool = False
@@ -353,6 +359,7 @@ class OpGuardBase(ABC):
         local_files_only: bool = False,
         only_load_export: bool = False,
         force_export_refresh: bool = False,
+        instance_to_match: OpGuardBase | None = None,
     ) -> None:
         """Initialize the model guard and resolve device list and effective dtype.
 
@@ -436,10 +443,10 @@ class OpGuardBase(ABC):
 
         # initialize dtype, variant, device_list based on runtime hardware
         self.device_list, self.device, self.dtype, self.variant, self.device_map, self.quant_config = init_guard(
-            device=device_override or self.DEFAULT_DEVICE,
-            device_map=device_map_override or self.DEFAULT_DEVICE_MAP,
-            dtype=dtype_override or self.DTYPE_PREFERENCE,
-            quant_config=quant_config_override,
+            device=device_override or getattr(instance_to_match, "device", None) or self.DEFAULT_DEVICE,
+            device_map=device_map_override or getattr(instance_to_match, "device_map", None) or self.DEFAULT_DEVICE_MAP,
+            dtype=dtype_override or getattr(instance_to_match, "dtype", None) or self.DTYPE_PREFERENCE,
+            quant_config=quant_config_override or getattr(instance_to_match, "quant_config", None),
             quant_type=quant_type_override or self.DEFAULT_QUANT_TYPE,
             quant_use_double=quant_use_double_override or self.DEFAULT_QUANT_USE_DOUBLE,
             model_type=self.DETECTOR_TYPE,
@@ -595,7 +602,7 @@ class OpGuardBase(ABC):
         logger.debug("Free complete (including sync, garbage collection, and torch cache empty)")
         self._is_freed = True
 
-    def __enter__(self) -> "OpGuardBase":
+    def __enter__(self) -> Self:
         """Support for use as context manager, avoiding agressive per-call freeing."""
         self._in_context = True
         logger.debug("Pre-loading models on enter due to context manager")
@@ -620,7 +627,8 @@ class OpGuardBase(ABC):
         logger.debug(f"Running inference (call) for {self.NAME}...")
         with self.lazy_loader_context():
             # Autocast for proper precision, accounting for gradient needs, also stream synchronize
-            # Note: dtype and device guard are already pre-checked in init
+            # Note: dtype and device guard are already pre-checked in init.
+            # Note: the options for garbage collect on success/failure revert to defaults
             with call_guard(
                 need_grads=self.NEED_GRADS,
                 sanitize_all_exceptions=self.sanitize_all_exceptions,

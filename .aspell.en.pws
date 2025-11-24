@@ -1,12 +1,15 @@
-personal_ws-1.1 en 29
+personal_ws-1.1 en 36
+CUDA
 Colab
 Composable
 ControlNets
 Diffusers
 HTTPS
+HuggingFace
 Jupyter
 Ollama
 OpGuard
+PyTest
 Qdrant
 SDXL
 TLS
@@ -14,6 +17,7 @@ Traefik
 VAEs
 VRAM
 autoencoders
+autograd
 customizable
 diffusers
 dtype
@@ -25,6 +29,9 @@ macOS
 mixins
 opguard
 pre
+quantized
 symlinks
 teardown
+traceback
+tracebacks
 variational

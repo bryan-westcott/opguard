@@ -1,8 +1,8 @@
 """Utilities for opguard Inference."""
 
-from . import base as _base
-from . import util as _util
-from .sitecustomize import package_remove_init
+from opguard import base as _base
+from opguard import util as _util
+from opguard.sitecustomize import package_remove_init
 
 # avoid calling __init__.py in controlnet_aux as it loads
 # all detectors, even those uninstalled or with compatibility issues

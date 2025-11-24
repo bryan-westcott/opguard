@@ -84,17 +84,23 @@ if TYPE_CHECKING:
     from contextlib import AbstractContextManager
 
 import torch
-from diffusers import BitsAndBytesConfig as DiffusersBitsAndBytesConfig
 from huggingface_hub import HfApi, snapshot_download
 from huggingface_hub.file_download import repo_folder_name
 from huggingface_hub.utils import LocalEntryNotFoundError
 from loguru import logger
-from transformers import BitsAndBytesConfig as TransformersBitsAndBytesConfig
 
 # ---------- type aliases (Py 3.11) ----------
+
+if TYPE_CHECKING:
+    from diffusers import BitsAndBytesConfig as DiffusersBitsAndBytesConfig
+    from transformers import BitsAndBytesConfig as TransformersBitsAndBytesConfig
+
+    QuantConfigLike: TypeAlias = TransformersBitsAndBytesConfig | DiffusersBitsAndBytesConfig
+
+
+DTypeLike: TypeAlias = str | torch.dtype
 DeviceLike: TypeAlias = int | str | torch.device
 DeviceMapLike: TypeAlias = str | Mapping[str, DeviceLike]
-QuantConfigLike: TypeAlias = TransformersBitsAndBytesConfig | DiffusersBitsAndBytesConfig
 
 # for detach function
 DetachFn = Callable[[object], object]
@@ -378,7 +384,7 @@ _DTYPE_ALIASES: dict[str, torch.dtype] = {
 }
 
 
-def normalize_dtype(dtype: str | torch.dtype) -> torch.dtype:
+def normalize_dtype(dtype: DTypeLike) -> torch.dtype:
     """Convert from a string torch dtype representation to actual torch.dtype.
 
     examples:
@@ -1654,6 +1660,7 @@ def quant_guard(
     backend: str = "bnb",
 ) -> QuantConfigLike | None:
     """Determine quantization parameters, and if supported by hardware."""
+    # ruff: noqa: PLC0415  # expensive to import diffusers, transformers just for BitsAndBytesConfig
     if quant_config_override is not None:
         logger.trace(f"Using existing {quant_config_override=}")
         return quant_config_override
@@ -1692,8 +1699,12 @@ def quant_guard(
     module = getattr(model_type, "__module__", "None")
     base_module = module.split(".")[0]
     if base_module == "diffusers":
+        from diffusers import BitsAndBytesConfig as DiffusersBitsAndBytesConfig
+
         config_obj_type = DiffusersBitsAndBytesConfig
     elif base_module == "transformers":
+        from transformers import BitsAndBytesConfig as TransformersBitsAndBytesConfig
+
         config_obj_type = TransformersBitsAndBytesConfig
     else:
         message = f"Invalid base_module for {module=}, cannot determine if transformers or diffusers"
@@ -2112,14 +2123,18 @@ def vram_guard(
     sanitize_all_exceptions: bool = True,
     detach_outputs: bool = True,
     caller_fn: Callable[..., object] | None = None,
+    garbage_collect_on_exception: bool = True,
+    garbage_collect_on_success: bool = False,
 ) -> Iterator[Callable]:
     """Sync/sanitize/cleanup wrapper across all devices, where applicable.
 
     Features:
-    * applies to_cpu/detach for all outputs
-        - a deepcopy is problematic for memory use and synchronization
+    * applies a deep to_cpu/detach for all outputs
+        - a simple deepcopy is problematic for memory use and synchronization so we
+          handle it more carefully, while still preserving deep inspection
     * synchronizes (and waits on) all devices used and sanitze/re-throw exceptions
     * memory cleanup at the end: garbage collection and torch cache clear (in proper order)
+        - by default it garbage collects only on exceptions not successes
     * handles exceptions gracefully
 
     Warning:
@@ -2137,6 +2152,7 @@ def vram_guard(
         with vram_guard(device_list=device_list, detach_outputs=True) as detach:
             out = detach(run_model(...))
     """
+    exception_raised: bool = False
     try:
         if caller_fn is not None:
             logger.trace(f"Guarding {caller_fn=} with {detach_outputs=} in vram_guard")
@@ -2155,6 +2171,7 @@ def vram_guard(
                 torch.cuda.synchronize(dev)
     except Exception as e:
         # Sanitize and re-raise exception
+        exception_raised = True
         logger.trace("Exception inside vram_guard guarded execution")
         if sanitize_all_exceptions:
             # Log full traceback
@@ -2166,9 +2183,10 @@ def vram_guard(
         raise
     finally:
         logger.trace("Performing vram_guard cleanup")
+        do_garbage_collect = garbage_collect_on_exception if exception_raised else garbage_collect_on_success
         sync_gc_and_cache_cleanup(
             do_sync=True,
-            do_garbage_collect=True,
+            do_garbage_collect=do_garbage_collect,
             do_empty_cache=True,
             suppress_errors=True,
             device_list=device_list,
