@@ -200,6 +200,28 @@ OpGuard uses a deterministic, signature-based caching system built from the help
 
 This produces reproducible, offline-safe, and revision-stable model loading across environments.
 
+---
+
+### ⚠️ Responsible Use of Generative AI
+
+This project includes tools that may generate text, code, images, or other outputs using machine-learning models.
+Generated outputs may be inaccurate, biased, unsafe, or inappropriate for production use without careful human review.
+
+You are responsible for independently evaluating, validating, and verifying all outputs before any use or deployment.
+Do not rely on generated content for decisions that could cause harm, violate laws, infringe rights, or create unsafe conditions.
+
+We encourage all users to follow responsible and ethical AI practices, consistent with guidelines published by major AI research organizations.
+In particular, users should avoid using this software or generated outputs to:
+
+- cause harm to people, property, or the environment
+- enable deception, misinformation, or malicious manipulation
+- engage in illegal activity or support abusive or exploitative behavior
+- perform high-risk or critical tasks (e.g., medical, financial, legal, safety-critical systems) where errors could lead to serious consequences
+
+This project does not provide any warranties regarding the accuracy, safety, reliability, or suitability of generated content for any purpose.
+
+---
+
 ### ⚖️ License & attribution
 
 Apache 2.0
