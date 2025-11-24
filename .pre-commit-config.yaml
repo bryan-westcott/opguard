@@ -122,6 +122,7 @@ repos:
   # ---------------------------------------------------------
   # basic checks (see here: https://pre-commit.com/hooks.html)
   # ---------------------------------------------------------
+  # Note: exactly two trailing spaces allowed for markdown
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
@@ -132,6 +133,8 @@ repos:
       - id: check-toml
       - id: end-of-file-fixer
       - id: trailing-whitespace
+        args:
+          - --markdown-linebreak-ext=md
       - id: detect-private-key
   #
   # ---------------------------------------------------------

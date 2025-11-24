@@ -1,4 +1,6 @@
-### 💭 Why this package?
+# OpGuard
+
+## 💭 Why this package?
 
 Have you ever…
 
@@ -16,7 +18,7 @@ Yeah — same.
 
 ---
 
-### ⚙️ What it is
+## ⚙️ What it is
 
 **OpGuard** provides a minimal, extensible layer for safe, deterministic inference.
 It wraps all the gritty setup and teardown around your model so you can focus on logic, not leaks.
@@ -73,7 +75,7 @@ allowing data scientists and developers to move quickly with confidence.
 
 ---
 
-### 🚀 Minimal Example (Quick Start)
+## 🚀 Minimal Example (Quick Start)
 
 Note that we only write code for the parts that differ from other models.
 All the model loading, device handling, revision enforcement, caching,
@@ -130,7 +132,7 @@ Finally, run smoke tests:
 
 - `from opguard.tests import smoke; smoke()`
 
-### 🔍 Testing and profiling
+## 🔍 Testing and profiling
 
 - PyTest test are available in `tests/test.py`:
   - Smoke test (no GPU required): `pytest -m smoke`
@@ -147,11 +149,11 @@ Finally, run smoke tests:
   - Inference timing inclusive (large diffusers and transformers models):
     - `python -m torch.utils.bottleneck src/opguard/tests/large.py`
 
-### ❓ How does it work?
+## ❓ How does it work?
 
 There are many features provided by this module, but two of the more difficult to get correct are the following:
 
-#### VRAM Management
+### VRAM Management
 
 OpGuard implements a strict cleanup pipeline based on the behavior in `util.py` and `OpGuardBase`. It ensures that long-running Torch and Transformers/Diffusers sessions do not leak VRAM. This can occur when references to objects on GPU prevent proper freeing, such as detached outputs or exceptions and is especially problematic with notebooks (where the solution is often to restart the kernel and lose all intermediate work).
 
@@ -179,7 +181,7 @@ This prevents the usual VRAM degradation that occurs in notebooks and services w
 
 ---
 
-#### Model Caching
+### Model Caching
 
 OpGuard uses a deterministic, signature-based caching system built from the helpers in `util.py`. This avoids accidental cache hits, remote pulls, and inconsistent model variants.
 
@@ -200,6 +202,28 @@ OpGuard uses a deterministic, signature-based caching system built from the help
 
 This produces reproducible, offline-safe, and revision-stable model loading across environments.
 
-### ⚖️ License & attribution
+---
+
+## ⚠️ Responsible Use of Generative AI
+
+This project includes tools that may generate text, code, images, or other outputs using machine-learning models.
+Generated outputs may be inaccurate, biased, unsafe, or inappropriate for production use without careful human review.
+
+You are responsible for independently evaluating, validating, and verifying all outputs before any use or deployment.
+Do not rely on generated content for decisions that could cause harm, violate laws, infringe rights, or create unsafe conditions.
+
+We encourage all users to follow responsible and ethical AI practices, consistent with guidelines published by major AI research organizations.
+In particular, users should avoid using this software or generated outputs to:
+
+- cause harm to people, property, or the environment
+- enable deception, misinformation, or malicious manipulation
+- engage in illegal activity or support abusive or exploitative behavior
+- perform high-risk or critical tasks (e.g., medical, financial, legal, safety-critical systems) where errors could lead to serious consequences
+
+This project does not provide any warranties regarding the accuracy, safety, reliability, or suitability of generated content for any purpose.
+
+---
+
+## ⚖️ License & attribution
 
 Apache 2.0
