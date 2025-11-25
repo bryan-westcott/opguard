@@ -118,7 +118,7 @@ def nlp() -> None:
 @pytest.mark.nlpxl
 def nlpxl() -> None:
     """Test BLIP2 captioner."""
-    from opguard.tetsts.nlp import blip
+    from opguard.tests.nlp import blip
 
     logger.info("Running 'nlp' large tests")
     blip(test_blip1=False, test_blip2_4bit=False, test_blip2_16bit=True)
