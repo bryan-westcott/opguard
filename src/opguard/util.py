@@ -2318,6 +2318,8 @@ def call_guard(
     device_list: list[torch.device],
     models: object | None = None,
     train_mode: bool = False,
+    garbage_collect_on_exception: bool = True,
+    garbage_collect_on_success: bool = False,
 ) -> Generator[Callable, None, None]:
     """Aggregate context manager for inference.
 
@@ -2329,6 +2331,7 @@ def call_guard(
         f"{device_list=}, {train_mode=}, "
         f"models={[type(model).__name__ for model in (models if isinstance(models, Iterable) else ())]}",
     )
+
     with (
         eval_guard(
             models_or_loader=models,
@@ -2341,6 +2344,8 @@ def call_guard(
             detach_outputs=detach_outputs,
             sanitize_all_exceptions=sanitize_all_exceptions,
             caller_fn=caller_fn,
+            garbage_collect_on_exception=garbage_collect_on_exception,
+            garbage_collect_on_success=garbage_collect_on_success,
         ) as guarded_call,
     ):
         yield guarded_call
