@@ -120,17 +120,20 @@ with TinyVAE() as vae:
 
 ### ⚙️ Running on Google Colab
 
-If `!pip freeze | grep torch` shows `torch==2.8.0+cu126`:
+Install `opguard` from git:
 
-- `!pip3 install --no-deps xformers --index-url https://download.pytorch.org/whl/cu126`
+- there is a `cu126` branch to match Colab's native CUDA version
 
-Then, install `opguard` from git:
+- `!pip install "opguard[test] @ git+https://bryan-westcott@github.com/bryan-westcott/opguard.git@cu126"`
 
-- `!pip install "opguard[test] @ git+https://bryan-westcott@github.com/bryan-westcott/opguard.git@main"`
-
-Finally, run smoke tests:
+Finally, run smoke tests (CPU) only:
 
 - `from opguard.tests import smoke; smoke()`
+
+Then, GPU tests:
+
+- `from opguard.tests import vae; vae()`
+- `from opguard.tests import full; full()`
 
 ## 🔍 Testing and profiling
 
