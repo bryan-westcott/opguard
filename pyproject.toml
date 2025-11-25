@@ -80,7 +80,6 @@ test = [
     "controlnet-aux>=0.0.10",
     "easy-dwpose @ git+https://github.com/bryan-westcott/easy-dwpose-fork.git@v1.0.2.post4",
     "instantstyle-plus @ git+https://github.com/bryan-westcott/instantstyle-plus-fork.git@v0.1.0",
-    "pip",  # needed for profiling on cuda 12.4
 ]
 
 # To build a wheel/sdist, with:
@@ -175,7 +174,7 @@ torchvision = { index = "pytorch-cu"}
 [[tool.uv.index]]
 # also set tool.uv.sources
 name = "pytorch-cu"
-url = "https://download.pytorch.org/whl/cu124"
+url = "https://download.pytorch.org/whl/cu126"
 explicit = true
 
 # Allow install of a local editable copy with:
