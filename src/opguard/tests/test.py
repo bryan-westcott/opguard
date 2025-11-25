@@ -109,7 +109,7 @@ def fp16vae() -> None:
 @pytest.mark.nlp
 def nlp() -> None:
     """Test BLIP1 captioner."""
-    from opguard.tetsts.nlp import blip
+    from opguard.tests.nlp import blip
 
     logger.info("Running 'nlp' smaller tests")
     blip(test_blip1=True, test_blip2_4bit=True, test_blip2_16bit=False)
