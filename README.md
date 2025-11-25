@@ -140,6 +140,7 @@ Finally, run smoke tests:
   - Slower tests (4GB VRAM): `pytest -m slow`
   - Larger tests (8GB+ VRAM): `pytest -m large`
   - Full coverage: `pytest -m full`
+    - current coverage at `79%` (excludes `DwposeDetector`)
 
 - Profiling with `torch`:
   - Overhead timing (no inference, no transformers/diffusers):
