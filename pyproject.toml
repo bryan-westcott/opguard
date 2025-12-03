@@ -16,7 +16,7 @@ name = "opguard"
 description = "opguard Utilities"
 requires-python = ">=3.11,<3.13"
 readme = "README.md"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
     "accelerate>=1.7.0",
     "xformers>=0.0.29.post3",
