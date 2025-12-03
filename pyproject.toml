@@ -16,7 +16,7 @@ name = "opguard"
 description = "opguard Utilities"
 requires-python = ">=3.11,<3.13"
 readme = "README.md"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
     "accelerate>=1.7.0",
     "xformers>=0.0.29.post3",
@@ -80,7 +80,6 @@ test = [
     "controlnet-aux>=0.0.10",
     "easy-dwpose @ git+https://github.com/bryan-westcott/easy-dwpose-fork.git@v1.0.2.post4",
     "instantstyle-plus @ git+https://github.com/bryan-westcott/instantstyle-plus-fork.git@v0.1.0",
-    "pip",  # needed for profiling on cuda 12.4
 ]
 
 # To build a wheel/sdist, with:
@@ -169,13 +168,13 @@ override-dependencies = [
 # ensure we get cuda-enabled torch repo, must also set tool.uv.index below
 # see: pytorch.org/get-started/locally: as of 02-june-2025 cuda 12.6 is
 #      in mainline pytorch but not 12.8 (or 11.8)
-torch = { index = "pytorch-cu"}
-torchvision = { index = "pytorch-cu"}
+torch = { index = "pytorch-cuda-repo"}
+torchvision = { index = "pytorch-cuda-repo"}
 
 [[tool.uv.index]]
 # also set tool.uv.sources
-name = "pytorch-cu"
-url = "https://download.pytorch.org/whl/cu124"
+name = "pytorch-cuda-repo"
+url = "https://download.pytorch.org/whl/cu126"
 explicit = true
 
 # Allow install of a local editable copy with:
