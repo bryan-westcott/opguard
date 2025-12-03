@@ -1,4 +1,6 @@
 name: Run all PyTest Tests
+permissions:
+  contents: read
 on:
   # Automatically trigger it when detected changes in repo
   # Note: only keep push action as PR build is handled by

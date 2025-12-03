@@ -6,6 +6,8 @@ name: PR and Dispatch Checks
 #   Add ruleset for dev to check for two successful status checks for PR push:
 #     * "Run All Code Quality Checks in PR"
 #     * "Docker Images Test Build in PR"
+permissions:
+  contents: read
 on:
   pull_request:
     branches:
