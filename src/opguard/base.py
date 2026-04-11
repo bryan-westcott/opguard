@@ -333,8 +333,8 @@ class OpGuardBase(ABC):
             logger.debug(f"Running default simple passthrough postprocessor due to {self._processor}")
             return output_raw  # default: output_proc = output_raw
         if hasattr(self._processor, "postprocess"):
-            logger.debug("Detected 'postprocessor' method in self._processor, running with defaults")
-            return self._processor.preprocessor(output_raw)
+            logger.debug("Detected 'postprocess' method in self._processor, running with defaults")
+            return self._processor.postprocess(output_raw)
         logger.debug(
             "Detected loaded '_processor' but has no 'postprocessor' method, "
             "running simple passthrough, specialize _postprocessor if desired.",
