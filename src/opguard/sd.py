@@ -111,7 +111,7 @@ class SdxlTextToImage(StableDiffusionBase):
     MODEL_ID = "stabilityai/stable-diffusion-xl-base-1.0"
     REVISION = "main"
     DEFAULT_DEVICE = "cuda"
-    DEFAULT_DTYPE = torch.bfloat16
+    DTYPE_PREFERENCE = torch.bfloat16
     DEFAULT_DEVICE_MAP = "cuda"
     DETECTOR_TYPE = StableDiffusionXLPipeline
     SKIP_TO_DEVICE = True
