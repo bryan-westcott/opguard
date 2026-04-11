@@ -438,8 +438,8 @@ class OpGuardBase(ABC):
         self.force_export_refresh: bool = force_export_refresh
         # caller related ptions
         self.keep_warm: bool = keep_warm
-        self.sanitize_all_exceptions: bool = True
-        self.detach_outputs: bool = True
+        self.sanitize_all_exceptions: bool = sanitize_all_exceptions
+        self.detach_outputs: bool = detach_outputs
 
         # initialize dtype, variant, device_list based on runtime hardware
         self.device_list, self.device, self.dtype, self.variant, self.device_map, self.quant_config = init_guard(

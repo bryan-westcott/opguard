@@ -1,10 +1,16 @@
 """Tests for step-00 cleanup fixes (COS-1 through COS-4)."""
 
+# ruff: noqa: SLF001   # tests legitimately access private members
+# ruff: noqa: PLC0415  # defer heavy imports (matches existing test convention)
+# ruff: noqa: ANN401   # kwargs typing in test helpers
+
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any, cast
-from unittest.mock import MagicMock
+from typing import TYPE_CHECKING, Any, cast
+from unittest.mock import MagicMock, patch
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import pytest
 import torch
@@ -13,15 +19,26 @@ from opguard.base import DetectorFactory, OpGuardBase
 
 
 class _MinimalGuard(OpGuardBase):
-    """Minimal concrete subclass for unit testing."""
+    """Minimal concrete subclass for unit testing.
+
+    Uses DEFAULT_DEVICE="cpu" and patches variant_guard to avoid network calls.
+    """
 
     NAME = "test-minimal"
     MODEL_ID = "test/model"
     REVISION = "main"
+    DEFAULT_DEVICE = "cpu"
+    DEFAULT_DEVICE_MAP = "cpu"
     DETECTOR_TYPE = cast("DetectorFactory", lambda *_, **__: ...)
 
     def _load_detector(self) -> Callable:
         return lambda x: x
+
+
+def _make_guard(**kwargs: Any) -> _MinimalGuard:
+    """Create a _MinimalGuard with variant_guard patched to avoid network calls."""
+    with patch("opguard.util.variant_guard", return_value=("", None)):
+        return _MinimalGuard(**kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -71,11 +88,7 @@ class TestInitParams:
     """COS-2: Constructor parameters are not silently overwritten."""
 
     def test_defaults_are_true(self) -> None:
-        """When not passed, both default to True."""
-        guard = _MinimalGuard.__new__(_MinimalGuard)
-        # Call __init__ indirectly through the class, simulating default args.
-        # We use __new__ + direct attribute setting to avoid full init side effects.
-        # Instead, check the actual constructor signature defaults.
+        """When not passed, both default to True in the signature."""
         import inspect
 
         sig = inspect.signature(OpGuardBase.__init__)
@@ -84,25 +97,25 @@ class TestInitParams:
 
     def test_sanitize_all_exceptions_false(self) -> None:
         """sanitize_all_exceptions=False is respected, not overwritten to True."""
-        with _MinimalGuard(sanitize_all_exceptions=False) as guard:
-            assert guard.sanitize_all_exceptions is False
+        guard = _make_guard(sanitize_all_exceptions=False)
+        assert guard.sanitize_all_exceptions is False
 
     def test_detach_outputs_false(self) -> None:
         """detach_outputs=False is respected, not overwritten to True."""
-        with _MinimalGuard(detach_outputs=False) as guard:
-            assert guard.detach_outputs is False
+        guard = _make_guard(detach_outputs=False)
+        assert guard.detach_outputs is False
 
     def test_both_false(self) -> None:
         """Both can be set to False simultaneously."""
-        with _MinimalGuard(sanitize_all_exceptions=False, detach_outputs=False) as guard:
-            assert guard.sanitize_all_exceptions is False
-            assert guard.detach_outputs is False
+        guard = _make_guard(sanitize_all_exceptions=False, detach_outputs=False)
+        assert guard.sanitize_all_exceptions is False
+        assert guard.detach_outputs is False
 
     def test_both_default_true(self) -> None:
         """Both default to True when not specified."""
-        with _MinimalGuard() as guard:
-            assert guard.sanitize_all_exceptions is True
-            assert guard.detach_outputs is True
+        guard = _make_guard()
+        assert guard.sanitize_all_exceptions is True
+        assert guard.detach_outputs is True
 
 
 # ---------------------------------------------------------------------------
@@ -119,12 +132,13 @@ class TestSkipKwargsValidation:
         class BadSkipKwargs(_MinimalGuard):
             FROM_PRETRAINED_SKIP_KWARGS = "not-a-tuple"  # type: ignore[assignment]
 
-        with BadSkipKwargs() as guard:
-            with pytest.raises(TypeError) as exc_info:
-                guard._load()
-            # The message itself must be a string, not a tuple
-            assert isinstance(exc_info.value.args[0], str)
-            assert "FROM_PRETRAINED_SKIP_KWARGS" in str(exc_info.value)
+        with patch("opguard.util.variant_guard", return_value=("", None)):
+            guard = BadSkipKwargs()
+        with pytest.raises(TypeError) as exc_info:
+            guard._load()
+        # The message itself must be a string, not a tuple
+        assert isinstance(exc_info.value.args[0], str)
+        assert "FROM_PRETRAINED_SKIP_KWARGS" in str(exc_info.value)
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +177,4 @@ class TestDtypePreference:
             for name, obj in vars(mod).items():
                 if isinstance(obj, type) and issubclass(obj, OpGuardBase) and obj is not OpGuardBase:
                     assert hasattr(obj, "DTYPE_PREFERENCE"), f"{name} missing DTYPE_PREFERENCE"
-                    assert obj.DTYPE_PREFERENCE == torch.bfloat16, (
-                        f"{name}.DTYPE_PREFERENCE is not torch.bfloat16"
-                    )
+                    assert torch.bfloat16 == obj.DTYPE_PREFERENCE, f"{name}.DTYPE_PREFERENCE is not torch.bfloat16"
