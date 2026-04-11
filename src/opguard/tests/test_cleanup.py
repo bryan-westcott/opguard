@@ -134,8 +134,11 @@ class TestSkipKwargsValidation:
 
         with patch("opguard.util.variant_guard", return_value=("", None)):
             guard = BadSkipKwargs()
+        # Call the base class _load_detector directly — the override in
+        # _MinimalGuard skips the validation, but the base class method
+        # contains the FROM_PRETRAINED_SKIP_KWARGS type check.
         with pytest.raises(TypeError) as exc_info:
-            guard._load()
+            OpGuardBase._load_detector(guard)
         # The message itself must be a string, not a tuple
         assert isinstance(exc_info.value.args[0], str)
         assert "FROM_PRETRAINED_SKIP_KWARGS" in str(exc_info.value)

@@ -261,7 +261,7 @@ class OpGuardBase(ABC):
         # Filter out those skipped
         if not isinstance(self.FROM_PRETRAINED_SKIP_KWARGS, tuple):
             message = (
-                "Attribute FROM_PRETRAINED_SKIP_KWARGS is not a tuple, be sure to add comma for singleton tuple values",
+                "Attribute FROM_PRETRAINED_SKIP_KWARGS is not a tuple, be sure to add comma for singleton tuple values"
             )
             raise TypeError(message)
         if self.FROM_PRETRAINED_SKIP_KWARGS:
