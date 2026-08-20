@@ -15,7 +15,7 @@ variant_guard never probes the network.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 from loguru import logger
 
@@ -139,6 +139,36 @@ def enter_failure_leaves_no_partial_state() -> None:
     assert guard._is_freed is True
 
 
+def keep_warm_load_failure_leaves_no_partial_state() -> None:
+    """A failed keep_warm construction load frees partial state too.
+
+    keep_warm=True loads inside __init__, with no __enter__/__exit__
+    involved, so the cleanup must live in _load itself. The instance is
+    captured via __new__ since a raising __init__ never returns it.
+    """
+    constructed: list[FailingDetectorGuard] = []
+
+    class CapturingFailingGuard(FailingDetectorGuard):
+        NAME = "lifecycle-failing-keep-warm"
+
+        def __new__(cls, **kwargs: Any) -> Self:  # noqa: ARG004  # mirror __init__'s signature
+            instance = super().__new__(cls)
+            constructed.append(instance)
+            return instance
+
+    raised = False
+    try:
+        CapturingFailingGuard(keep_warm=True)
+    except RuntimeError:
+        raised = True
+    assert raised, "expected the detector load failure to propagate"
+    assert len(constructed) == 1
+    guard = constructed[0]
+    assert guard._processor is None
+    assert guard._detector is None
+    assert guard._is_freed is True
+
+
 def double_free_idempotent() -> None:
     """Freeing twice is safe and leaves the guard freed."""
     guard = LifecyclePassthrough(keep_warm=True)
@@ -204,6 +234,7 @@ def lifecycle_checks() -> None:
     context_manager_roundtrip()
     call_after_exit()
     enter_failure_leaves_no_partial_state()
+    keep_warm_load_failure_leaves_no_partial_state()
     double_free_idempotent()
     free_then_reload_cache_hit(device="cpu", dtype="float32")
     logger.info("Lifecycle matrix checks passed")

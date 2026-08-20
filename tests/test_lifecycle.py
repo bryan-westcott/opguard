@@ -37,6 +37,11 @@ def test_enter_failure_leaves_no_partial_state() -> None:
     lifecycle.enter_failure_leaves_no_partial_state()
 
 
+def test_keep_warm_load_failure_leaves_no_partial_state() -> None:
+    """Failed keep_warm construction load frees partial state."""
+    lifecycle.keep_warm_load_failure_leaves_no_partial_state()
+
+
 def test_double_free_idempotent() -> None:
     """Double free is a safe no-op."""
     lifecycle.double_free_idempotent()

@@ -534,32 +534,43 @@ class OpGuardBase(ABC):
         return type(self).__name__
 
     def _load(self) -> None:
-        """Load detector and processor (if applicable), unless already loaded."""
+        """Load detector and processor (if applicable), unless already loaded.
+
+        Note: a failed load frees any partial state (e.g., a processor
+        loaded before the detector failure) before re-raising, covering
+        every load path including keep_warm construction.
+        """
         # Always indicate potentially unfreed
         self._is_freed = False
         # Now attempt to load
         logger.debug(f"Loading model(s) for {self.NAME}: model_id={self.model_id}")
 
-        # reset to empty
-        if self.extra_info:
-            self.extra_info = {}
-        if not self._processor:
-            # Note: for now load guard is only applied to detector
-            self._processor = self._load_processor()
-        if not self._detector:
-            self._detector = load_guard(
-                local_files_only=self.local_files_only,
-                train_mode=False,
-                loader_fn=self._load_detector,
-                loader_kwargs=None,
-                base_export_name=f"{self.NAME}-detector",
-                only_load_export=self.only_load_export,
-                force_export_refresh=self.force_export_refresh,
-                use_safetensors=self.use_safetensors,
-                sanitize_all_exceptions=self.sanitize_all_exceptions,
-                detach_outputs=self.detach_outputs,
-                device_list=self.device_list,
-            )
+        try:
+            # reset to empty
+            if self.extra_info:
+                self.extra_info = {}
+            if not self._processor:
+                # Note: for now load guard is only applied to detector
+                self._processor = self._load_processor()
+            if not self._detector:
+                self._detector = load_guard(
+                    local_files_only=self.local_files_only,
+                    train_mode=False,
+                    loader_fn=self._load_detector,
+                    loader_kwargs=None,
+                    base_export_name=f"{self.NAME}-detector",
+                    only_load_export=self.only_load_export,
+                    force_export_refresh=self.force_export_refresh,
+                    use_safetensors=self.use_safetensors,
+                    sanitize_all_exceptions=self.sanitize_all_exceptions,
+                    detach_outputs=self.detach_outputs,
+                    device_list=self.device_list,
+                )
+        except BaseException:
+            # the processor loads before the detector, so a detector
+            # failure would otherwise strand partial state on the instance
+            self._free(reason="load failure")
+            raise
         logger.debug(
             f"Loaded detector for {self.model_id}: {type(self._detector)}, "
             f"dtype={getattr(self._detector, 'dtype', None)}, "
