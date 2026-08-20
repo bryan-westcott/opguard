@@ -166,15 +166,15 @@ override-dependencies = [
 
 [tool.uv.sources]
 # ensure we get cuda-enabled torch repo, must also set tool.uv.index below
-# see: pytorch.org/get-started/locally: as of 02-june-2025 cuda 12.6 is
-#      in mainline pytorch but not 12.8 (or 11.8)
+# see: pytorch.org/get-started/locally: cuda 12.8 builds are required for
+#      sm_120 (RTX 50-series) GPU support
 torch = { index = "pytorch-cuda-repo"}
 torchvision = { index = "pytorch-cuda-repo"}
 
 [[tool.uv.index]]
 # also set tool.uv.sources
 name = "pytorch-cuda-repo"
-url = "https://download.pytorch.org/whl/cu126"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 # Allow install of a local editable copy with:
