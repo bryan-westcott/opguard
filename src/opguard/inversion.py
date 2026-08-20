@@ -1,3 +1,6 @@
+# Copyright (c) 2025-2026 Bryan Westcott
+# SPDX-License-Identifier: Apache-2.0
+
 """Inversion and reconstruction classes."""
 
 # ruff: noqa: RET504  (Explicit is better here)

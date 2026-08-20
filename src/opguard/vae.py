@@ -1,3 +1,6 @@
+# Copyright (c) 2025-2026 Bryan Westcott
+# SPDX-License-Identifier: Apache-2.0
+
 """An example TinyVAE specialization of OpGuardBase."""
 
 # We do not care about LSP substitutability, OpGuard is not used directly

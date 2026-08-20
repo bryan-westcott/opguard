@@ -1,3 +1,6 @@
+# Copyright (c) 2025-2026 Bryan Westcott
+# SPDX-License-Identifier: Apache-2.0
+
 """BLIP NLP captioners."""
 
 # We do not care about LSP substitutability, OpGuardBase is not used directly

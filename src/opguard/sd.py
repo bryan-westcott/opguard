@@ -1,3 +1,6 @@
+# Copyright (c) 2025-2026 Bryan Westcott
+# SPDX-License-Identifier: Apache-2.0
+
 """Examples of Stable Diffusion."""
 
 from typing import Any, ClassVar, TypeAlias

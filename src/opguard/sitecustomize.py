@@ -1,3 +1,6 @@
+# Copyright (c) 2025-2026 Bryan Westcott
+# SPDX-License-Identifier: Apache-2.0
+
 """Customization to fix quirks of certain modules."""
 
 import importlib.machinery

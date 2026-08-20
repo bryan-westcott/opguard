@@ -1,3 +1,6 @@
+# Copyright (c) 2025-2026 Bryan Westcott
+# SPDX-License-Identifier: Apache-2.0
+
 """Lifecycle test matrix runners for OpGuardBase (load/free/reload semantics).
 
 Each runner is a plain callable with bare asserts so it can run both from the standalone

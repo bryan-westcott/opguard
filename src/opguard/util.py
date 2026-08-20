@@ -1,3 +1,6 @@
+# Copyright (c) 2025-2026 Bryan Westcott
+# SPDX-License-Identifier: Apache-2.0
+
 """AI/ML model guards and utilities for PyTorch.
 
 This module provides composable context managers and helpers to run memory-intensive
