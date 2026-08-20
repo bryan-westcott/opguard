@@ -89,7 +89,7 @@ class HedDetector(OpGuardBase):
         if _HEDdetector is None:
             message = (
                 "HedDetector requires the optional dependency 'controlnet-aux', "
-                "Install with: pip install opguard[controlnetaux]",
+                "Install with: pip install opguard[controlnet]"
             )
             raise RuntimeError(message)
         return cast("DetectorFactory", _HEDdetector)
