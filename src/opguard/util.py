@@ -2411,18 +2411,24 @@ def model_guard(
     """Provide guarded caller using all model_guard guards (convenience function).
 
     Inputs:
-        init_gurad_kwargs:
+        init_guard_kwargs:
             device, device_map, dtype, model_id, revision,
             local_hfhub_variant_check_only, device_list_override,
             dtype_override, variant_override
         load_guard_kwargs:
-            local_files_only, train_mode, loader_fn,
+            local_files_only, train_mode, loader_fn, device_list,
             export_name, only_load_export, force_export_refresh,
-        call _gurad_kwargs:
+            use_safetensors
+        call_guard_kwargs:
             need_grads, sanitize_all_exceptions, caller_fn, train_mode
         free_guard_kwargs:
             run_gc_and_clear_cache
     """
+    # Pre-bind names read in the finally block so an early failure
+    # (e.g., inside init_guard) propagates the original exception
+    # instead of a NameError from the cleanup itself
+    device_list = None
+    model = None
     try:
         # detect device-specific settings
         device_list, device_normalized, effective_dtype, variant, device_map, quant_config = init_guard(
@@ -2431,6 +2437,8 @@ def model_guard(
 
         # update
         # safely load the model
+        # Note: local_files_only and use_safetensors mirror load_guard's own
+        #       arguments (init_guard does not accept either)
         loader_kwargs = {
             "model_id": init_guard_kwargs["model_id"],
             "revision": init_guard_kwargs["revision"],
@@ -2438,7 +2446,8 @@ def model_guard(
             "dtype": effective_dtype,
             "variant": variant,
             "device_map": device_map,
-            "local_files_only": init_guard_kwargs["local_files_only"],
+            "local_files_only": load_guard_kwargs.get("local_files_only", False),
+            "use_safetensors": load_guard_kwargs.get("use_safetensors", True),
             "quant_config": quant_config,
         }
         model = load_guard(loader_kwargs=loader_kwargs, **load_guard_kwargs)
@@ -2454,10 +2463,11 @@ def model_guard(
             yield guarded_caller
 
     finally:
-        # Free at the end
-        with free_guard(
-            device_list=device_list,
-            **free_guard_kwargs,
-        ):
-            # explicitly delete it so GC/cache-clear can run
-            del model
+        # Free at the end, only once devices were resolved
+        if device_list is not None:
+            with free_guard(
+                device_list=device_list,
+                **free_guard_kwargs,
+            ):
+                # explicitly delete it so GC/cache-clear can run
+                del model
