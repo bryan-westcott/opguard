@@ -11,6 +11,10 @@ variant_guard never probes the network, so construction is offline-safe.
 # ruff: noqa: PLC0415  # defer heavy imports (matches existing test convention)
 # ruff: noqa: ANN401   # kwargs typing in test helpers
 
+# We do not care about LSP substitutability, OpGuard is not used directly
+# mypy: disable-error-code=override
+
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
