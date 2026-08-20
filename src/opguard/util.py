@@ -582,9 +582,9 @@ def sync_gc_and_cache_cleanup(
     cuda_devs = [d for d in device_list if isinstance(d, torch.device) and d.type == "cuda"] if cuda_ok else []
 
     # Best-effort drain; never clobber the primary error.
-    # Note: synchronize all devices
+    # Note: synchronize all CUDA devices (cpu entries cannot be synchronized)
     if do_sync and cuda_devs:
-        for dev in device_list:
+        for dev in cuda_devs:
             with cx:
                 torch.cuda.synchronize(dev)
 
