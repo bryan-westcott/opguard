@@ -605,7 +605,12 @@ class OpGuardBase(ABC):
         self._is_freed = True
 
     def __enter__(self) -> Self:
-        """Support for use as context manager, avoiding agressive per-call freeing."""
+        """Support for use as context manager, avoiding agressive per-call freeing.
+
+        Note: if loading fails during enter, any partial state (e.g., a
+        processor loaded before the detector failure) is freed and the
+        original exception re-raised, so the instance stays reusable.
+        """
         self._in_context = True
         logger.debug("Pre-loading models on enter due to context manager")
         try:
@@ -682,6 +687,11 @@ class OpGuardBase(ABC):
 
         For calling _load() and _free() in lazy mode based on keep_warm or _in_context.
         Useful for lazy caller and model property getters.
+
+        Note: loading is gated on the detector being absent, so a fresh
+        instance loads on its very first call or `.detector` access;
+        `_is_freed` strictly means "a free completed" and is never used
+        as the load gate.
         """
         try:
             # Lazy loader

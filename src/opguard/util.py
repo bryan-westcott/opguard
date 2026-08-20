@@ -571,6 +571,8 @@ def sync_gc_and_cache_cleanup(
     * intended to be run as a best-effort on final cleanup, suppressing errors
     * it is best to sync within a try block *without* suppression, as that are were some errors surface
     * device_list required for sync, even if not used to avoid potentially raising exception in exception
+    * only the CUDA devices in device_list are synchronized; cpu entries are
+      ignored, so mixed cpu+cuda lists are safe even with suppress_errors=False
     """
     logger.trace(f"cleanup: {device_list=}, {do_sync=}, {do_garbage_collect=}, {do_empty_cache=}, {suppress_errors=}")
 
@@ -2010,6 +2012,10 @@ def cache_guard(
       use ``variant``.
     - This function does **not** manage online/offline behavior; wrap your calls
       in ``local_guard(...)`` if you need to forbid network access.
+    - Cache-routing overrides applied to a ``loader_params_obj`` (e.g., pointing
+      ``model_id`` at the export directory) are scoped to the load and restored
+      afterwards, so the guard keeps its original identity and a
+      free-then-reload cycle recomputes the same signature (a cache hit).
     - The stored signature is minimal by design and does *not* include external
       state (e.g., environment, files on disk). If your loader depends on such
       state, include it explicitly in ``loader_args``/``loader_kwargs``.
