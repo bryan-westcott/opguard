@@ -142,15 +142,15 @@ repos:
   # ---------------------------------------------------------
   # Note: ruff installed in pyproject dev group
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.1
+    rev: v0.16.3
     hooks:
       - id: ruff
         name: ruff
-        language_version: python3.11
+        language_version: python3.12
         args: [--fix] # run ruff check --fix
       - id: ruff-format
         name: ruff-format
-        language_version: python3.11
+        language_version: python3.12
   #
   # ---------------------------------------------------------
   # mypy - lint-like type checking
@@ -161,7 +161,7 @@ repos:
     hooks:
       - id: mypy
         name: mypy
-        language_version: python3.11
+        language_version: python3.12
         additional_dependencies:
           - matplotlib-stubs
           - pandas-stubs
