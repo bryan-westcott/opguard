@@ -610,7 +610,15 @@ class OpGuardBase(ABC):
         """Support for use as context manager, avoiding agressive per-call freeing."""
         self._in_context = True
         logger.debug("Pre-loading models on enter due to context manager")
-        self._load()
+        try:
+            self._load()
+        except BaseException:
+            # __exit__ never runs when __enter__ raises, so free here to
+            # avoid stranding partial state (e.g., a processor loaded
+            # before the detector load failed) and reset the context flag
+            self._in_context = False
+            self._free(reason="failed context manager enter")
+            raise
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001, this is standard format
