@@ -25,8 +25,8 @@ from opguard.base import DetectorFactory, OpGuardBase
 class _MinimalGuard(OpGuardBase):
     """Minimal concrete subclass for unit testing.
 
-    Uses DEFAULT_DEVICE="cpu" so dtype resolves to float32 and
-    variant_guard skips its network probe entirely.
+    Uses DEFAULT_DEVICE="cpu" so dtype resolves to float32 and variant_guard skips its
+    network probe entirely.
     """
 
     NAME = "test-minimal"
@@ -194,9 +194,8 @@ class TestDtypePreference:
 def cleanup_checks() -> None:
     """Run every cleanup check as a plain callable (for marker-suite wiring).
 
-    pytest collects the classes above when this file is run standalone;
-    the marker suite (restricted to test.py entry functions) calls this
-    runner instead.
+    pytest collects the classes above when this file is run standalone; the marker suite
+    (restricted to test.py entry functions) calls this runner instead.
     """
     postprocess = TestPostprocess()
     postprocess.test_postprocess_calls_postprocess_method()

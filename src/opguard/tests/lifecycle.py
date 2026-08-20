@@ -1,10 +1,9 @@
 """Lifecycle test matrix runners for OpGuardBase (load/free/reload semantics).
 
-Each runner is a plain callable with bare asserts so it can run both
-from the standalone pytest file (tests/test_lifecycle.py) and from the
-marker-suite entry functions in test.py. No mocks: real guards, real
-construction, CPU-pinned by default so dtype resolves to float32 and
-variant_guard never probes the network.
+Each runner is a plain callable with bare asserts so it can run both from the standalone
+pytest file (tests/test_lifecycle.py) and from the marker-suite entry functions in
+test.py. No mocks: real guards, real construction, CPU-pinned by default so dtype
+resolves to float32 and variant_guard never probes the network.
 """
 
 # ruff: noqa: SLF001   # lifecycle checks legitimately inspect private state
@@ -122,8 +121,8 @@ def call_after_exit() -> None:
 def enter_failure_leaves_no_partial_state() -> None:
     """A failing __enter__ frees partial state and resets context flags.
 
-    The processor loads before the detector inside _load, so a detector
-    failure would otherwise strand a loaded processor on the instance.
+    The processor loads before the detector inside _load, so a detector failure would
+    otherwise strand a loaded processor on the instance.
     """
     guard = FailingDetectorGuard()
     raised = False
@@ -142,9 +141,9 @@ def enter_failure_leaves_no_partial_state() -> None:
 def keep_warm_load_failure_leaves_no_partial_state() -> None:
     """A failed keep_warm construction load frees partial state too.
 
-    keep_warm=True loads inside __init__, with no __enter__/__exit__
-    involved, so the cleanup must live in _load itself. The instance is
-    captured via __new__ since a raising __init__ never returns it.
+    keep_warm=True loads inside __init__, with no __enter__/__exit__ involved, so the
+    cleanup must live in _load itself. The instance is captured via __new__ since a
+    raising __init__ never returns it.
     """
     constructed: list[FailingDetectorGuard] = []
 

@@ -522,7 +522,8 @@ class OpGuardBase(ABC):
 
     @use_safetensors.setter
     def use_safetensors(self, value: bool) -> None:
-        """Use_safetensors setter, to _use_safetensors_override without class mutation."""
+        """Use_safetensors setter, to _use_safetensors_override without class
+        mutation."""
         if value is False:
             message = "Cannot override USE_SAFETENSORS with False"
             raise ValueError(message)
