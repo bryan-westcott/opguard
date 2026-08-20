@@ -507,7 +507,7 @@ class OpGuardBase(ABC):
 
         Note: from type(self).MODEL_ID unless self._model_id_override not None.
         """
-        return self._model_id_override if self._model_id_override else self.MODEL_ID
+        return self._model_id_override or self.MODEL_ID
 
     @model_id.setter
     def model_id(self, value: str) -> None:
@@ -520,7 +520,7 @@ class OpGuardBase(ABC):
 
         Note: from type(self).USE_SAFETENSORS unless self._use_safetensors_override not None.
         """
-        return self._use_safetensors_override if self._use_safetensors_override else self.USE_SAFETENSORS
+        return self._use_safetensors_override or self.USE_SAFETENSORS
 
     @use_safetensors.setter
     def use_safetensors(self, value: bool) -> None:
