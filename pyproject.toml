@@ -294,3 +294,8 @@ version = "0.9.3"
 
 [tool.yamlfmt]
 version = "0.20.0"
+
+[tool.docformatter]
+recursive = true
+wrap-summaries = 88
+wrap-descriptions = 88
