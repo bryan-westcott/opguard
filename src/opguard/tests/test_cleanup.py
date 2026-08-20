@@ -14,7 +14,6 @@ variant_guard never probes the network, so construction is offline-safe.
 # We do not care about LSP substitutability, OpGuard is not used directly
 # mypy: disable-error-code=override
 
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast

@@ -17,7 +17,6 @@ resolves to float32 and variant_guard never probes the network.
 # We do not care about LSP substitutability, OpGuard is not used directly
 # mypy: disable-error-code=override
 
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Self
