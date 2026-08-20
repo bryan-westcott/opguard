@@ -1,6 +1,5 @@
 # Copyright (c) 2025-2026 Bryan Westcott
 # SPDX-License-Identifier: Apache-2.0
-
 """Smoke tests for OpGuardBase exercising CPU, GPU, and BFloat modes.
 
 To run, with debugging:     uv run pytest --log-cli-level=DEBUG --capture=no

@@ -1,6 +1,5 @@
 # Copyright (c) 2025-2026 Bryan Westcott
 # SPDX-License-Identifier: Apache-2.0
-
 """High-level runtime guard for inference.
 
 This module defines `OpGuardBase`, an abstract base class that wraps the

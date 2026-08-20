@@ -1,6 +1,5 @@
 # Copyright (c) 2025-2026 Bryan Westcott
 # SPDX-License-Identifier: Apache-2.0
-
 """Tests for step-00 cleanup fixes (the step-00 plan's COS-1 through COS-4).
 
 No mocks: real objects and real guard construction, per project policy.
