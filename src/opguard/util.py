@@ -1116,7 +1116,7 @@ def _cache_apply_loader_overrides(
     loader_overrides: Mapping[str, Any],
     loader_params_obj: object | None,
     loader_kwargs: Mapping[str, Any] | None,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], Callable[[], None]]:
     """Apply cache routing overrides to a loader.
 
     Overrides may be in the form of a bound method (with `self`) or a free
@@ -1124,7 +1124,20 @@ def _cache_apply_loader_overrides(
     only if accepted by the loader (has that param or **kwargs) or already
     present.
 
-    Returns a NEW kwargs dict to pass to `loader_fn(**new_kwargs)`.
+    Returns a NEW kwargs dict to pass to `loader_fn(**new_kwargs)` and a
+    zero-arg restore callable that undoes every instance-state change the
+    overrides made to `loader_params_obj`. The caller must invoke the
+    restore callable once the load completes (success or failure) so the
+    overrides stay scoped to the load: a permanently mutated `model_id`
+    would make the export signature recompute differently on the next
+    reload and force a spurious export rebuild.
+
+    The restore operates on the instance `__dict__` entries that each
+    `setattr` actually changed, not on the public attribute names. This
+    matters for property-backed attributes (`model_id`,
+    `use_safetensors`): their setters write side-effect fields like
+    `_model_id_override`, and restoring through the property setter would
+    re-create the very override state being removed.
 
     Note: will set in both places, provided they are in the original
 
@@ -1135,9 +1148,25 @@ def _cache_apply_loader_overrides(
     # Shallow copy to avoid mutating caller's dict
     new_kwargs: dict[str, Any] = dict(loader_kwargs) if (loader_kwargs is not None) else {}
 
+    # Underlying __dict__ entries to put back (or drop) after the load
+    restore_values: dict[str, Any] = {}
+    added_keys: set[str] = set()
+
     for key, value in loader_overrides.items():
         if (loader_params_obj is not None) and hasattr(loader_params_obj, key):
+            # Diff the instance state around the setattr so property
+            # side-effect fields are captured under their real names
+            state_before = dict(vars(loader_params_obj))
             setattr(loader_params_obj, key, value)
+            state_after = vars(loader_params_obj)
+            for changed in set(state_before) | set(state_after):
+                if (changed in restore_values) or (changed in added_keys):
+                    # first snapshot wins: it holds the pre-override value
+                    continue
+                if changed not in state_before:
+                    added_keys.add(changed)
+                elif (changed not in state_after) or (state_after[changed] is not state_before[changed]):
+                    restore_values[changed] = state_before[changed]
         elif (loader_kwargs is not None) and (key in loader_kwargs):
             new_kwargs[key] = value
         else:
@@ -1145,7 +1174,18 @@ def _cache_apply_loader_overrides(
             raise ValueError(message)
         logger.trace(f"Overriding: {key} with {value}")
 
-    return new_kwargs
+    def restore_loader_params() -> None:
+        if (loader_params_obj is None) or (not restore_values and not added_keys):
+            return
+        obj_state = vars(loader_params_obj)
+        for key in added_keys:
+            obj_state.pop(key, None)
+        obj_state.update(restore_values)
+        logger.trace(
+            f"Restored loader params state: restored={sorted(restore_values)}, removed={sorted(added_keys)}",
+        )
+
+    return new_kwargs, restore_loader_params
 
 
 def _cache_check_load_against_expected(*, signature_metadata_expected: dict[str, Any], model: object) -> None:
@@ -2040,13 +2080,19 @@ def cache_guard(
         export_variant=export_variant,
     )
     # override values in loader_params_obj/loader_kwargs
-    loader_kwargs = _cache_apply_loader_overrides(
+    loader_kwargs, restore_loader_params = _cache_apply_loader_overrides(
         loader_params_obj=loader_params_obj,
         loader_kwargs=loader_kwargs,
         loader_overrides=loader_overrides,
     )
     # Load the model with same loader either way
-    model = loader_fn(**loader_kwargs)
+    # Note: restore in finally so the overrides stay scoped to this load
+    #       even on exception; a mutated model_id would break the export
+    #       signature match on the next reload
+    try:
+        model = loader_fn(**loader_kwargs)
+    finally:
+        restore_loader_params()
     # Verify loading was successful
     _cache_check_load_against_expected(signature_metadata_expected=signature_metadata_expected, model=model)
     # Export the model, if applicable
