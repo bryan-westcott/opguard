@@ -491,6 +491,10 @@ class OpGuardBase(ABC):
             "USE_SAFETENSORS",
         ]:
             val = getattr(cls, attr, None)
+            # DEFAULT_DEVICE_MAP is Optional by contract: None disables
+            # multi-device mapping (see DeviceMapLike | None annotation)
+            if (attr == "DEFAULT_DEVICE_MAP") and (val is None):
+                continue
             if (val == "") or (val is None):
                 message = f"{cls.__name__} must define non-empty class attr {attr!r}"
                 raise TypeError(message)
