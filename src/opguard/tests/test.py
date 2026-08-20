@@ -102,7 +102,7 @@ def bfloat() -> None:
     if torch.cuda.is_available():
         tiny_vae_roundtrip_sequence(device="cuda", dtype="bfloat16")
     else:
-        logger.warning("Unable to run BFLOAT16 tests due to loack of CUDA/GPU")
+        logger.warning("Unable to run BFLOAT16 tests due to lack of CUDA/GPU")
 
 
 @pytest.mark.fp16vae
@@ -122,7 +122,7 @@ def fp16vae() -> None:
             force_export_refresh=True,
         )
     else:
-        logger.warning("Unable to run sdxl_vae_fp16_fix tests due to loack of CUDA/GPU")
+        logger.warning("Unable to run sdxl_vae_fp16_fix tests due to lack of CUDA/GPU")
 
 
 @pytest.mark.nlp
@@ -154,7 +154,7 @@ def sd() -> None:
     if torch.cuda.is_available():
         sd_tiny()
     else:
-        logger.warning("Unable to run sd tests due to loack of CUDA/GPU")
+        logger.warning("Unable to run sd tests due to lack of CUDA/GPU")
 
 
 @pytest.mark.control

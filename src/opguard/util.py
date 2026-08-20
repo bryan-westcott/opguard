@@ -5,7 +5,7 @@ This module provides composable context managers and helpers to run memory-inten
 
 What this fixes:
 - Tying up VRAM on past calculations, especially exceptions and Jupyter notebooks
-    - detatch outputs, without copying and even for nested output
+    - detach outputs, without copying and even for nested output
     - detach tracebacks on exceptions wihtout losing error messages (strip and reraise)
     - always run garbage collect and cache clean, even on exception (try/finally)
 - Difficulties in using reduced precision types:
@@ -24,7 +24,7 @@ What this fixes:
 - Forgetting logging
     - all choices including input preferences and overrides are logged
 - Remembering to do all of this
-    - single convenience guard: cuda_gurad
+    - single convenience guard: model_guard
 
 Composite context manager:
 - model_guard: convenience of all guards, yields a guarded callable model
@@ -1393,7 +1393,7 @@ def device_guard(
     # device list takes precedence
     if device_list_override:
         if not device_normalized_override:
-            message = "if device_list_overide is provided, device_normalized_override must also be provided"
+            message = "if device_list_override is provided, device_normalized_override must also be provided"
             raise ValueError(message)
         logger.trace(f"Using device_list={device_list_override=}, device_normalized={device_normalized_override=}")
         return device_list_override, device_normalized_override, device_map
@@ -1427,7 +1427,7 @@ def device_guard(
         device_normalized = normalize_device("cpu")
     if device_normalized.type == "cpu" and cuda_available:
         logger.warning(
-            "CPU device requested and CUDA available, falling back to cpu mode and device_map=None",
+            "CPU device explicitly requested on a CUDA-capable host, using cpu and device_map=None",
         )
         device_map = None
         device_normalized = normalize_device("cpu")
@@ -1800,7 +1800,7 @@ def local_guard(*, local_files_only: bool = True) -> Generator[bool, None, None]
             os.environ.pop("HF_HUB_OFFLINE", None)
         yield local_files_only
     finally:
-        logger.trace("Restoring HF_HUB_OFFILNE in local_guard exit")
+        logger.trace("Restoring HF_HUB_OFFLINE in local_guard exit")
         if old is None:
             os.environ.pop("HF_HUB_OFFLINE", None)
         else:
@@ -2189,14 +2189,16 @@ def vram_guard(
     * applies a deep to_cpu/detach for all outputs
         - a simple deepcopy is problematic for memory use and synchronization so we
           handle it more carefully, while still preserving deep inspection
-    * synchronizes (and waits on) all devices used and sanitze/re-throw exceptions
+    * synchronizes (and waits on) all devices used and sanitize/re-throw exceptions
     * memory cleanup at the end: garbage collection and torch cache clear (in proper order)
         - by default it garbage collects only on exceptions not successes
     * handles exceptions gracefully
 
     Warning:
-    This will detatch ALL exceptions, as even keyboard interrupts which are
-    typically not caught can tie up RAM/VRAM (e.g., in ipython/jupyter).
+    Exception sanitization (traceback detach) applies to Exception
+    subclasses only; BaseException escapes like KeyboardInterrupt or
+    SystemExit propagate unsanitized, although the finally-block sync,
+    garbage collection, and cache cleanup still run for them.
 
     Yields:
         if call function provided:
@@ -2252,7 +2254,7 @@ def vram_guard(
 
 @contextmanager
 def free_guard(*, device_list: list[torch.device], run_gc_and_clear_cache: bool = True) -> Generator[None, None, None]:
-    """Ensure garbage collectiona and cache clear happen after model free."""
+    """Ensure garbage collection and cache clear happen after model free."""
     # Note: models freed here
     yield
     # Apply GC and cache clear as we just freed up the models
@@ -2269,7 +2271,7 @@ def free_guard(*, device_list: list[torch.device], run_gc_and_clear_cache: bool 
             device_list=device_list,
         )
     else:
-        logger.warning("Skippnig garbage collection and cache_clear in free_guard")
+        logger.warning("Skipping garbage collection and cache_clear in free_guard")
 
 
 # ---------- aggregates for init, load, call ----------
@@ -2339,8 +2341,8 @@ def load_guard(
 ) -> object:
     """Aggregate context manager for model load.
 
-    Aggreages:
-        local_guard, eval_guard, vram_gurad (for loader), and cache_guard.
+    Aggregates:
+        local_guard, eval_guard, vram_guard (for loader), and cache_guard.
     """
     with (
         # extra protection for local files

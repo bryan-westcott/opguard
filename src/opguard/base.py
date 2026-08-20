@@ -93,7 +93,7 @@ class OpGuardBase(ABC):
     This base class owns the execution environment (device list, effective
     dtype, AMP/grad setup, synchronization, traceback scrubbing, GC/cache
     clearing). Subclasses provide model construction and the actual forward
-    call, keeping model-specific code minimal.  The class is designged to
+    call, keeping model-specific code minimal.  The class is designed to
     be easily overridable (with sensible defaults) for model loading
     (including preprocessor and/or postprocessor) and also the pre-process,
     caller, and post-process steps themselves.
@@ -235,7 +235,7 @@ class OpGuardBase(ABC):
             2. override with kwargs to this method and call in derived class:
                 super()._load_detector(**override_kwargs)
             3. add static kwargs with self.FROM_PRETRAINED_ADDITIONAL_KWARGS
-            4. skip unsupported args with self.FROM_PRETRIAINED_SKIP_KWARGS
+            4. skip unsupported args with self.FROM_PRETRAINED_SKIP_KWARGS
         """
         # ruff: noqa: PLR0912  # This has to handle lots of different model interfaces
         # ruff: noqa: C901  # This has to handle lots of different model interfaces
@@ -336,8 +336,8 @@ class OpGuardBase(ABC):
             logger.debug("Detected 'postprocess' method in self._processor, running with defaults")
             return self._processor.postprocess(output_raw)
         logger.debug(
-            "Detected loaded '_processor' but has no 'postprocessor' method, "
-            "running simple passthrough, specialize _postprocessor if desired.",
+            "Detected loaded '_processor' but has no 'postprocess' method, "
+            "running simple passthrough, specialize _postprocess if desired.",
         )
         return output_raw
 
@@ -388,7 +388,7 @@ class OpGuardBase(ABC):
                 across calls. If False, loading may be lazy and `_free()` may
                 release memory between calls.
             sanitize_all_exceptions:
-                If Ture, any exceptions during guarded calls are
+                If True, any exceptions during guarded calls are
                 sanitized (tracebacks detached, cuda devices synchronized, concise
                 error re-raised).
             detach_outputs:
@@ -503,28 +503,26 @@ class OpGuardBase(ABC):
     def model_id(self) -> str:
         """Return the Huggingface ID for the core model weights.
 
-        Note: from type(self).MODEL_ID unles self._model_id_override not None.
+        Note: from type(self).MODEL_ID unless self._model_id_override not None.
         """
-        # Note: may b
         return self._model_id_override if self._model_id_override else self.MODEL_ID
 
     @model_id.setter
     def model_id(self, value: str) -> None:
-        """Model id setter, to _model_id_override witout class muatation."""
+        """Model id setter, to _model_id_override without class mutation."""
         self._model_id_override = value
 
     @property
     def use_safetensors(self) -> bool:
-        """Return the Huggingface ID for the core model weights.
+        """Return whether to use safetensors for loading.
 
-        Note: from type(self).USE_SAFETENSORS unles self._use_safetensors_override not None.
+        Note: from type(self).USE_SAFETENSORS unless self._use_safetensors_override not None.
         """
-        # Note: may b
         return self._use_safetensors_override if self._use_safetensors_override else self.USE_SAFETENSORS
 
     @use_safetensors.setter
     def use_safetensors(self, value: bool) -> None:
-        """Model id setter, to _use_safetensors_override witout class muatation."""
+        """Use_safetensors setter, to _use_safetensors_override without class mutation."""
         if value is False:
             message = "Cannot override USE_SAFETENSORS with False"
             raise ValueError(message)
@@ -539,7 +537,7 @@ class OpGuardBase(ABC):
         """Load detector and processor (if applicable), unless already loaded."""
         # Always indicate potentially unfreed
         self._is_freed = False
-        # Now attemtp to load
+        # Now attempt to load
         logger.debug(f"Loading model(s) for {self.NAME}: model_id={self.model_id}")
 
         # reset to empty
@@ -627,7 +625,7 @@ class OpGuardBase(ABC):
         self._free(reason="Context manager exit")
 
     def __del__(self) -> None:
-        """On object delete, all the free method, handlnig exceptions."""
+        """On object delete, call the free method, handling exceptions."""
         self._free(reason="destructor")
 
     def __call__(self, *, input_raw: Any, **kwargs) -> Any:
@@ -669,7 +667,7 @@ class OpGuardBase(ABC):
 
     @property
     def processor(self) -> Any:
-        """Retrieve detector, simple loading.
+        """Retrieve processor, simple loading.
 
         Notes:
         * only the main model is guarded since pre-processors typically are lightweight.
