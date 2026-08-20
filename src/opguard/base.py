@@ -675,7 +675,10 @@ class OpGuardBase(ABC):
         """
         try:
             # Lazy loader
-            if self._is_freed:
+            # Note: gate on the detector itself (not _is_freed) so a fresh
+            #       instance loads on first use; _is_freed keeps meaning
+            #       "a free completed"
+            if self._detector is None:
                 logger.debug(f"Lazy loading {self.NAME} on call")
                 self._load()
             yield None
