@@ -34,7 +34,7 @@ dependencies = [
 [dependency-groups]
 
 tooling = [
-    "ruff>=0.14.1",
+    "ruff>=0.16.3",
     "mypy>=1.18.2",
     "docformatter>=1.7.7",
     "yamllint>=1.37.1",
