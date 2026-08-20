@@ -1740,10 +1740,11 @@ def quant_guard(
         config_input["bnb_4bit_use_double_quant"] = quant_use_double
 
     # check backend
+    # Note: BitsAndBytesConfig has no backend parameter, so the value is
+    #       validated here but never forwarded
     if backend != "bnb":
-        message = f"Only 'bnb' quantization backedn supported, provided {backend=}"
+        message = f"Only 'bnb' quantization backend supported, provided {backend=}"
         raise ValueError(message)
-    config_input["backend"] = backend
 
     # check if transformers or diffusers
     module = getattr(model_type, "__module__", "None")
