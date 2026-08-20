@@ -1156,6 +1156,13 @@ def _cache_apply_loader_overrides(
 
     for key, value in loader_overrides.items():
         if (loader_params_obj is not None) and hasattr(loader_params_obj, key):
+            # A no-op override needs no setattr; this also keeps values a
+            # property setter would reject (e.g., use_safetensors=False,
+            # legitimate when it IS the guard's current value) from
+            # crashing the load
+            if getattr(loader_params_obj, key) == value:
+                logger.trace(f"Skipping override of {key}: already {value}")
+                continue
             # Diff the instance state around the setattr so property
             # side-effect fields are captured under their real names
             state_before = dict(vars(loader_params_obj))

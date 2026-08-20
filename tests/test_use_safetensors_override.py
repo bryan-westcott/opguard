@@ -49,6 +49,19 @@ def test_instance_override_reaches_load_guard() -> None:
     assert guard.seen_use_safetensors is True
 
 
+def test_class_false_without_override_loads_cleanly() -> None:
+    """A USE_SAFETENSORS=False guard with no override loads without ValueError.
+
+    Pre-fix, cache_guard's refresh branch routed use_safetensors=False
+    back through the property setter, which rejects False.
+    """
+    guard = RecordingSafetensorsGuard()
+    guard(input_raw=load_test_image(use_blank=True, final_size=(64, 64)))
+    assert guard.seen_use_safetensors is False
+    # the guard's own value is untouched after the load
+    assert guard.use_safetensors is False
+
+
 def test_class_default_true_still_reaches_load_guard() -> None:
     """Without an override, the class default (True) flows through unchanged."""
 
