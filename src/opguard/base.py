@@ -346,7 +346,7 @@ class OpGuardBase(ABC):
     def __init__(
         self,
         *,
-        dtype_override: torch.device | None = None,
+        dtype_override: torch.dtype | None = None,
         device_override: DeviceLike | None = None,
         device_map_override: DeviceMapLike | None = None,
         quant_config_override: QuantConfigLike | None = None,
