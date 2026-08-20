@@ -16,7 +16,7 @@ name = "opguard"
 description = "opguard Utilities"
 requires-python = ">=3.11,<3.13"
 readme = "README.md"
-version = "0.1.4"
+version = "0.2.0"
 dependencies = [
     "accelerate>=1.7.0",
     "xformers>=0.0.29.post3",
@@ -34,7 +34,7 @@ dependencies = [
 [dependency-groups]
 
 tooling = [
-    "ruff>=0.14.1",
+    "ruff>=0.16.3",
     "mypy>=1.18.2",
     "docformatter>=1.7.7",
     "yamllint>=1.37.1",
@@ -118,7 +118,7 @@ pytest-full = "opguard.tests.test:full"
 testpaths = ["src/opguard/tests"]
 python_files = ["test.py"]
 # collect functions for possible use
-python_functions = ["smoke", "trivial", "cpu", "gpu", "bfloat16", "vae", "fp16vae", "nlp", "sd", "control", "nlpxl", "sdxl", "inversion", "slow", "large", "full"]
+python_functions = ["smoke", "trivial", "cpu", "gpu", "bfloat", "vae", "fp16vae", "nlp", "sd", "control", "nlpxl", "sdxl", "inversion", "slow", "large", "full"]
 # Default flags: no stdout spam, show locals on failure, fail on unknown marks
 addopts = """
   -q
@@ -137,14 +137,14 @@ addopts = """
 # Selectively run with: pytest -m <marker>
 markers = [
     "smoke: fast smoke tests that run on CPU",
-    "trival: fast tests with trivail passthrough detector",
+    "trival: fast tests with trivial passthrough detector",
     "nlp: opt-in blip1 tests",
     "sd: opt-in stable diffusion tests",
     "control: opt-in controlnets tests",
     "vae: opt-in vae tests",
     "cpu: opt-in cpu test with caching using tiny vae",
     "gpu: opt-in gpu test with caching using tiny vae",
-    "bfloat: opt-in bflaot16 test with caching using tiny vae",
+    "bfloat: opt-in bfloat16 test with caching using tiny vae",
     "fp16vae: opt-in test of fp16 fixed sdxl vae",
     "nlpxl: opt-in test of blip2",
     "sdxl: opt-in test of sdxl",
@@ -166,15 +166,15 @@ override-dependencies = [
 
 [tool.uv.sources]
 # ensure we get cuda-enabled torch repo, must also set tool.uv.index below
-# see: pytorch.org/get-started/locally: as of 02-june-2025 cuda 12.6 is
-#      in mainline pytorch but not 12.8 (or 11.8)
+# see: pytorch.org/get-started/locally: cuda 12.8 builds are required for
+#      sm_120 (RTX 50-series) GPU support
 torch = { index = "pytorch-cuda-repo"}
 torchvision = { index = "pytorch-cuda-repo"}
 
 [[tool.uv.index]]
 # also set tool.uv.sources
 name = "pytorch-cuda-repo"
-url = "https://download.pytorch.org/whl/cu126"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 # Allow install of a local editable copy with:
@@ -247,6 +247,9 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # Allow more complexity for R&D projects
 max-complexity = 13
 
+[tool.ruff.lint.flake8-copyright]
+author = "Bryan Westcott"
+
 [tool.ruff.format]
 # Like Black, use double quotes for strings.
 quote-style = "double"
@@ -294,3 +297,8 @@ version = "0.9.3"
 
 [tool.yamlfmt]
 version = "0.20.0"
+
+[tool.docformatter]
+recursive = true
+wrap-summaries = 88
+wrap-descriptions = 88

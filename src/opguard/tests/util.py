@@ -1,3 +1,5 @@
+# Copyright (c) 2025-2026 Bryan Westcott
+# SPDX-License-Identifier: Apache-2.0
 """Test utilities."""
 
 # ruff: noqa: PLC0415  # try to keep heavy imports restricted to when needed for testing/profiling

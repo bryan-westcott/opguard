@@ -1,3 +1,5 @@
+# Copyright (c) 2025-2026 Bryan Westcott
+# SPDX-License-Identifier: Apache-2.0
 """High-level runtime guard for inference.
 
 This module defines `OpGuardBase`, an abstract base class that wraps the
@@ -93,7 +95,7 @@ class OpGuardBase(ABC):
     This base class owns the execution environment (device list, effective
     dtype, AMP/grad setup, synchronization, traceback scrubbing, GC/cache
     clearing). Subclasses provide model construction and the actual forward
-    call, keeping model-specific code minimal.  The class is designged to
+    call, keeping model-specific code minimal.  The class is designed to
     be easily overridable (with sensible defaults) for model loading
     (including preprocessor and/or postprocessor) and also the pre-process,
     caller, and post-process steps themselves.
@@ -235,7 +237,7 @@ class OpGuardBase(ABC):
             2. override with kwargs to this method and call in derived class:
                 super()._load_detector(**override_kwargs)
             3. add static kwargs with self.FROM_PRETRAINED_ADDITIONAL_KWARGS
-            4. skip unsupported args with self.FROM_PRETRIAINED_SKIP_KWARGS
+            4. skip unsupported args with self.FROM_PRETRAINED_SKIP_KWARGS
         """
         # ruff: noqa: PLR0912  # This has to handle lots of different model interfaces
         # ruff: noqa: C901  # This has to handle lots of different model interfaces
@@ -261,7 +263,7 @@ class OpGuardBase(ABC):
         # Filter out those skipped
         if not isinstance(self.FROM_PRETRAINED_SKIP_KWARGS, tuple):
             message = (
-                "Attribute FROM_PRETRAINED_SKIP_KWARGS is not a tuple, be sure to add comma for singleton tuple values",
+                "Attribute FROM_PRETRAINED_SKIP_KWARGS is not a tuple, be sure to add comma for singleton tuple values"
             )
             raise TypeError(message)
         if self.FROM_PRETRAINED_SKIP_KWARGS:
@@ -333,11 +335,11 @@ class OpGuardBase(ABC):
             logger.debug(f"Running default simple passthrough postprocessor due to {self._processor}")
             return output_raw  # default: output_proc = output_raw
         if hasattr(self._processor, "postprocess"):
-            logger.debug("Detected 'postprocessor' method in self._processor, running with defaults")
-            return self._processor.preprocessor(output_raw)
+            logger.debug("Detected 'postprocess' method in self._processor, running with defaults")
+            return self._processor.postprocess(output_raw)
         logger.debug(
-            "Detected loaded '_processor' but has no 'postprocessor' method, "
-            "running simple passthrough, specialize _postprocessor if desired.",
+            "Detected loaded '_processor' but has no 'postprocess' method, "
+            "running simple passthrough, specialize _postprocess if desired.",
         )
         return output_raw
 
@@ -346,7 +348,7 @@ class OpGuardBase(ABC):
     def __init__(
         self,
         *,
-        dtype_override: torch.device | None = None,
+        dtype_override: torch.dtype | None = None,
         device_override: DeviceLike | None = None,
         device_map_override: DeviceMapLike | None = None,
         quant_config_override: QuantConfigLike | None = None,
@@ -388,7 +390,7 @@ class OpGuardBase(ABC):
                 across calls. If False, loading may be lazy and `_free()` may
                 release memory between calls.
             sanitize_all_exceptions:
-                If Ture, any exceptions during guarded calls are
+                If True, any exceptions during guarded calls are
                 sanitized (tracebacks detached, cuda devices synchronized, concise
                 error re-raised).
             detach_outputs:
@@ -438,8 +440,8 @@ class OpGuardBase(ABC):
         self.force_export_refresh: bool = force_export_refresh
         # caller related ptions
         self.keep_warm: bool = keep_warm
-        self.sanitize_all_exceptions: bool = True
-        self.detach_outputs: bool = True
+        self.sanitize_all_exceptions: bool = sanitize_all_exceptions
+        self.detach_outputs: bool = detach_outputs
 
         # initialize dtype, variant, device_list based on runtime hardware
         self.device_list, self.device, self.dtype, self.variant, self.device_map, self.quant_config = init_guard(
@@ -491,6 +493,10 @@ class OpGuardBase(ABC):
             "USE_SAFETENSORS",
         ]:
             val = getattr(cls, attr, None)
+            # DEFAULT_DEVICE_MAP is Optional by contract: None disables
+            # multi-device mapping (see DeviceMapLike | None annotation)
+            if (attr == "DEFAULT_DEVICE_MAP") and (val is None):
+                continue
             if (val == "") or (val is None):
                 message = f"{cls.__name__} must define non-empty class attr {attr!r}"
                 raise TypeError(message)
@@ -499,28 +505,26 @@ class OpGuardBase(ABC):
     def model_id(self) -> str:
         """Return the Huggingface ID for the core model weights.
 
-        Note: from type(self).MODEL_ID unles self._model_id_override not None.
+        Note: from type(self).MODEL_ID unless self._model_id_override not None.
         """
-        # Note: may b
-        return self._model_id_override if self._model_id_override else self.MODEL_ID
+        return self._model_id_override or self.MODEL_ID
 
     @model_id.setter
     def model_id(self, value: str) -> None:
-        """Model id setter, to _model_id_override witout class muatation."""
+        """Model id setter, to _model_id_override without class mutation."""
         self._model_id_override = value
 
     @property
     def use_safetensors(self) -> bool:
-        """Return the Huggingface ID for the core model weights.
+        """Return whether to use safetensors for loading.
 
-        Note: from type(self).USE_SAFETENSORS unles self._use_safetensors_override not None.
+        Note: from type(self).USE_SAFETENSORS unless self._use_safetensors_override not None.
         """
-        # Note: may b
-        return self._use_safetensors_override if self._use_safetensors_override else self.USE_SAFETENSORS
+        return self._use_safetensors_override or self.USE_SAFETENSORS
 
     @use_safetensors.setter
     def use_safetensors(self, value: bool) -> None:
-        """Model id setter, to _use_safetensors_override witout class muatation."""
+        """Set the use_safetensors override without mutating the class attribute."""
         if value is False:
             message = "Cannot override USE_SAFETENSORS with False"
             raise ValueError(message)
@@ -532,32 +536,43 @@ class OpGuardBase(ABC):
         return type(self).__name__
 
     def _load(self) -> None:
-        """Load detector and processor (if applicable), unless already loaded."""
+        """Load detector and processor (if applicable), unless already loaded.
+
+        Note: a failed load frees any partial state (e.g., a processor
+        loaded before the detector failure) before re-raising, covering
+        every load path including keep_warm construction.
+        """
         # Always indicate potentially unfreed
         self._is_freed = False
-        # Now attemtp to load
+        # Now attempt to load
         logger.debug(f"Loading model(s) for {self.NAME}: model_id={self.model_id}")
 
-        # reset to empty
-        if self.extra_info:
-            self.extra_info = {}
-        if not self._processor:
-            # Note: for now load guard is only applied to detector
-            self._processor = self._load_processor()
-        if not self._detector:
-            self._detector = load_guard(
-                local_files_only=self.local_files_only,
-                train_mode=False,
-                loader_fn=self._load_detector,
-                loader_kwargs=None,
-                base_export_name=f"{self.NAME}-detector",
-                only_load_export=self.only_load_export,
-                force_export_refresh=self.force_export_refresh,
-                use_safetensors=self.USE_SAFETENSORS,
-                sanitize_all_exceptions=self.sanitize_all_exceptions,
-                detach_outputs=self.detach_outputs,
-                device_list=self.device_list,
-            )
+        try:
+            # reset to empty
+            if self.extra_info:
+                self.extra_info = {}
+            if not self._processor:
+                # Note: for now load guard is only applied to detector
+                self._processor = self._load_processor()
+            if not self._detector:
+                self._detector = load_guard(
+                    local_files_only=self.local_files_only,
+                    train_mode=False,
+                    loader_fn=self._load_detector,
+                    loader_kwargs=None,
+                    base_export_name=f"{self.NAME}-detector",
+                    only_load_export=self.only_load_export,
+                    force_export_refresh=self.force_export_refresh,
+                    use_safetensors=self.use_safetensors,
+                    sanitize_all_exceptions=self.sanitize_all_exceptions,
+                    detach_outputs=self.detach_outputs,
+                    device_list=self.device_list,
+                )
+        except BaseException:
+            # the processor loads before the detector, so a detector
+            # failure would otherwise strand partial state on the instance
+            self._free(reason="load failure")
+            raise
         logger.debug(
             f"Loaded detector for {self.model_id}: {type(self._detector)}, "
             f"dtype={getattr(self._detector, 'dtype', None)}, "
@@ -603,10 +618,23 @@ class OpGuardBase(ABC):
         self._is_freed = True
 
     def __enter__(self) -> Self:
-        """Support for use as context manager, avoiding agressive per-call freeing."""
+        """Support for use as context manager, avoiding agressive per-call freeing.
+
+        Note: if loading fails during enter, any partial state (e.g., a
+        processor loaded before the detector failure) is freed and the
+        original exception re-raised, so the instance stays reusable.
+        """
         self._in_context = True
         logger.debug("Pre-loading models on enter due to context manager")
-        self._load()
+        try:
+            self._load()
+        except BaseException:
+            # __exit__ never runs when __enter__ raises, so free here to
+            # avoid stranding partial state (e.g., a processor loaded
+            # before the detector load failed) and reset the context flag
+            self._in_context = False
+            self._free(reason="failed context manager enter")
+            raise
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001, this is standard format
@@ -615,7 +643,7 @@ class OpGuardBase(ABC):
         self._free(reason="Context manager exit")
 
     def __del__(self) -> None:
-        """On object delete, all the free method, handlnig exceptions."""
+        """On object delete, call the free method, handling exceptions."""
         self._free(reason="destructor")
 
     def __call__(self, *, input_raw: Any, **kwargs) -> Any:
@@ -657,7 +685,7 @@ class OpGuardBase(ABC):
 
     @property
     def processor(self) -> Any:
-        """Retrieve detector, simple loading.
+        """Retrieve processor, simple loading.
 
         Notes:
         * only the main model is guarded since pre-processors typically are lightweight.
@@ -672,10 +700,18 @@ class OpGuardBase(ABC):
 
         For calling _load() and _free() in lazy mode based on keep_warm or _in_context.
         Useful for lazy caller and model property getters.
+
+        Note: loading is gated on the detector being absent, so a fresh
+        instance loads on its very first call or `.detector` access;
+        `_is_freed` strictly means "a free completed" and is never used
+        as the load gate.
         """
         try:
             # Lazy loader
-            if self._is_freed:
+            # Note: gate on the detector itself (not _is_freed) so a fresh
+            #       instance loads on first use; _is_freed keeps meaning
+            #       "a free completed"
+            if self._detector is None:
                 logger.debug(f"Lazy loading {self.NAME} on call")
                 self._load()
             yield None

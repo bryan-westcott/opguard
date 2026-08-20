@@ -1,3 +1,5 @@
+# Copyright (c) 2025-2026 Bryan Westcott
+# SPDX-License-Identifier: Apache-2.0
 """Tests for model guard."""
 
 # module/tests/__init__.py

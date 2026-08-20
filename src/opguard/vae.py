@@ -1,3 +1,5 @@
+# Copyright (c) 2025-2026 Bryan Westcott
+# SPDX-License-Identifier: Apache-2.0
 """An example TinyVAE specialization of OpGuardBase."""
 
 # We do not care about LSP substitutability, OpGuard is not used directly
@@ -110,7 +112,7 @@ class VaeTinyForSd(AutoencoderTinyBase):
     MODEL_ID = "madebyollin/taesd"
     REVISION = "main"
     DEFAULT_DEVICE = "cuda"
-    DEFAULT_DTYPE = torch.bfloat16
+    DTYPE_PREFERENCE = torch.bfloat16
     DEFAULT_DEVICE_MAP = "cuda"  # will ignore for cpu
 
 
@@ -121,7 +123,7 @@ class VaeTinyForSdxl(AutoencoderTinyBase):
     MODEL_ID = "madebyollin/taesdxl"
     REVISION = "main"
     DEFAULT_DEVICE = "cuda"
-    DEFAULT_DTYPE = torch.bfloat16
+    DTYPE_PREFERENCE = torch.bfloat16
     DEFAULT_DEVICE_MAP = "cuda"  # will ignore for cpu
 
 
@@ -132,6 +134,6 @@ class VaeSdxlFp16Fix(AutoencoderKLBase):
     MODEL_ID = "madebyollin/sdxl-vae-fp16-fix"
     REVISION = "main"
     DEFAULT_DEVICE = "cuda"
-    DEFAULT_DTYPE = torch.bfloat16
+    DTYPE_PREFERENCE = torch.bfloat16
     DEFAULT_DEVICE_MAP = "cuda"
     FROM_PRETRAINED_SKIP_KWARGS = ("variant",)

@@ -1,3 +1,5 @@
+# Copyright (c) 2025-2026 Bryan Westcott
+# SPDX-License-Identifier: Apache-2.0
 """ControlNets classes."""
 
 # We do not care about LSP substitutability, OpGuardBase is not used directly
@@ -87,7 +89,7 @@ class HedDetector(OpGuardBase):
         if _HEDdetector is None:
             message = (
                 "HedDetector requires the optional dependency 'controlnet-aux', "
-                "Install with: pip install opguard[controlnetaux]",
+                "Install with: pip install opguard[controlnet]"
             )
             raise RuntimeError(message)
         return cast("DetectorFactory", _HEDdetector)

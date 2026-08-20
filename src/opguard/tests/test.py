@@ -1,3 +1,5 @@
+# Copyright (c) 2025-2026 Bryan Westcott
+# SPDX-License-Identifier: Apache-2.0
 """Smoke tests for OpGuardBase exercising CPU, GPU, and BFloat modes.
 
 To run, with debugging:     uv run pytest --log-cli-level=DEBUG --capture=no
@@ -45,6 +47,19 @@ def smoke() -> None:
 
     _smoke()
 
+    # Cleanup checks (real objects, CPU): wired here because pytest
+    # collection is restricted to test.py entry functions
+    from opguard.tests.test_cleanup import cleanup_checks
+
+    logger.info("Running 'cleanup' checks in smoke")
+    cleanup_checks()
+
+    # Lifecycle matrix (CPU)
+    from opguard.tests.lifecycle import lifecycle_checks
+
+    logger.info("Running 'lifecycle' matrix in smoke")
+    lifecycle_checks()
+
 
 @pytest.mark.cpu
 def cpu() -> None:
@@ -65,8 +80,14 @@ def gpu() -> None:
     logger.info("Running 'gpu' tests")
     if torch.cuda.is_available():
         tiny_vae_roundtrip_sequence(device="cuda", dtype="float16")
+
+        # GPU variant of the lifecycle cache-hit check
+        from opguard.tests.lifecycle import free_then_reload_cache_hit
+
+        logger.info("Running 'lifecycle' GPU cache-hit check in gpu")
+        free_then_reload_cache_hit(device="cuda", dtype="float16")
     else:
-        logger.warning("Unable to run GPU tests due to loack of CUDA/GPU")
+        logger.warning("Unable to run GPU tests due to lack of CUDA/GPU")
 
 
 @pytest.mark.bfloat
@@ -83,7 +104,7 @@ def bfloat() -> None:
     if torch.cuda.is_available():
         tiny_vae_roundtrip_sequence(device="cuda", dtype="bfloat16")
     else:
-        logger.warning("Unable to run BFLOAT16 tests due to loack of CUDA/GPU")
+        logger.warning("Unable to run BFLOAT16 tests due to lack of CUDA/GPU")
 
 
 @pytest.mark.fp16vae
@@ -103,7 +124,7 @@ def fp16vae() -> None:
             force_export_refresh=True,
         )
     else:
-        logger.warning("Unable to run sdxl_vae_fp16_fix tests due to loack of CUDA/GPU")
+        logger.warning("Unable to run sdxl_vae_fp16_fix tests due to lack of CUDA/GPU")
 
 
 @pytest.mark.nlp
@@ -135,7 +156,7 @@ def sd() -> None:
     if torch.cuda.is_available():
         sd_tiny()
     else:
-        logger.warning("Unable to run sd tests due to loack of CUDA/GPU")
+        logger.warning("Unable to run sd tests due to lack of CUDA/GPU")
 
 
 @pytest.mark.control

@@ -1,3 +1,5 @@
+# Copyright (c) 2025-2026 Bryan Westcott
+# SPDX-License-Identifier: Apache-2.0
 """AI/ML model guards and utilities for PyTorch.
 
 This module provides composable context managers and helpers to run memory-intensive
@@ -5,7 +7,7 @@ This module provides composable context managers and helpers to run memory-inten
 
 What this fixes:
 - Tying up VRAM on past calculations, especially exceptions and Jupyter notebooks
-    - detatch outputs, without copying and even for nested output
+    - detach outputs, without copying and even for nested output
     - detach tracebacks on exceptions wihtout losing error messages (strip and reraise)
     - always run garbage collect and cache clean, even on exception (try/finally)
 - Difficulties in using reduced precision types:
@@ -24,7 +26,7 @@ What this fixes:
 - Forgetting logging
     - all choices including input preferences and overrides are logged
 - Remembering to do all of this
-    - single convenience guard: cuda_gurad
+    - single convenience guard: model_guard
 
 Composite context manager:
 - model_guard: convenience of all guards, yields a guarded callable model
@@ -571,6 +573,8 @@ def sync_gc_and_cache_cleanup(
     * intended to be run as a best-effort on final cleanup, suppressing errors
     * it is best to sync within a try block *without* suppression, as that are were some errors surface
     * device_list required for sync, even if not used to avoid potentially raising exception in exception
+    * only the CUDA devices in device_list are synchronized; cpu entries are
+      ignored, so mixed cpu+cuda lists are safe even with suppress_errors=False
     """
     logger.trace(f"cleanup: {device_list=}, {do_sync=}, {do_garbage_collect=}, {do_empty_cache=}, {suppress_errors=}")
 
@@ -582,9 +586,9 @@ def sync_gc_and_cache_cleanup(
     cuda_devs = [d for d in device_list if isinstance(d, torch.device) and d.type == "cuda"] if cuda_ok else []
 
     # Best-effort drain; never clobber the primary error.
-    # Note: synchronize all devices
+    # Note: synchronize all CUDA devices (cpu entries cannot be synchronized)
     if do_sync and cuda_devs:
-        for dev in device_list:
+        for dev in cuda_devs:
             with cx:
                 torch.cuda.synchronize(dev)
 
@@ -1116,7 +1120,7 @@ def _cache_apply_loader_overrides(
     loader_overrides: Mapping[str, Any],
     loader_params_obj: object | None,
     loader_kwargs: Mapping[str, Any] | None,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], Callable[[], None]]:
     """Apply cache routing overrides to a loader.
 
     Overrides may be in the form of a bound method (with `self`) or a free
@@ -1124,7 +1128,20 @@ def _cache_apply_loader_overrides(
     only if accepted by the loader (has that param or **kwargs) or already
     present.
 
-    Returns a NEW kwargs dict to pass to `loader_fn(**new_kwargs)`.
+    Returns a NEW kwargs dict to pass to `loader_fn(**new_kwargs)` and a
+    zero-arg restore callable that undoes every instance-state change the
+    overrides made to `loader_params_obj`. The caller must invoke the
+    restore callable once the load completes (success or failure) so the
+    overrides stay scoped to the load: a permanently mutated `model_id`
+    would make the export signature recompute differently on the next
+    reload and force a spurious export rebuild.
+
+    The restore operates on the instance `__dict__` entries that each
+    `setattr` actually changed, not on the public attribute names. This
+    matters for property-backed attributes (`model_id`,
+    `use_safetensors`): their setters write side-effect fields like
+    `_model_id_override`, and restoring through the property setter would
+    re-create the very override state being removed.
 
     Note: will set in both places, provided they are in the original
 
@@ -1135,9 +1152,32 @@ def _cache_apply_loader_overrides(
     # Shallow copy to avoid mutating caller's dict
     new_kwargs: dict[str, Any] = dict(loader_kwargs) if (loader_kwargs is not None) else {}
 
+    # Underlying __dict__ entries to put back (or drop) after the load
+    restore_values: dict[str, Any] = {}
+    added_keys: set[str] = set()
+
     for key, value in loader_overrides.items():
         if (loader_params_obj is not None) and hasattr(loader_params_obj, key):
+            # A no-op override needs no setattr; this also keeps values a
+            # property setter would reject (e.g., use_safetensors=False,
+            # legitimate when it IS the guard's current value) from
+            # crashing the load
+            if getattr(loader_params_obj, key) == value:
+                logger.trace(f"Skipping override of {key}: already {value}")
+                continue
+            # Diff the instance state around the setattr so property
+            # side-effect fields are captured under their real names
+            state_before = dict(vars(loader_params_obj))
             setattr(loader_params_obj, key, value)
+            state_after = vars(loader_params_obj)
+            for changed in set(state_before) | set(state_after):
+                if (changed in restore_values) or (changed in added_keys):
+                    # first snapshot wins: it holds the pre-override value
+                    continue
+                if changed not in state_before:
+                    added_keys.add(changed)
+                elif (changed not in state_after) or (state_after[changed] is not state_before[changed]):
+                    restore_values[changed] = state_before[changed]
         elif (loader_kwargs is not None) and (key in loader_kwargs):
             new_kwargs[key] = value
         else:
@@ -1145,7 +1185,18 @@ def _cache_apply_loader_overrides(
             raise ValueError(message)
         logger.trace(f"Overriding: {key} with {value}")
 
-    return new_kwargs
+    def restore_loader_params() -> None:
+        if (loader_params_obj is None) or (not restore_values and not added_keys):
+            return
+        obj_state = vars(loader_params_obj)
+        for key in added_keys:
+            obj_state.pop(key, None)
+        obj_state.update(restore_values)
+        logger.trace(
+            f"Restored loader params state: restored={sorted(restore_values)}, removed={sorted(added_keys)}",
+        )
+
+    return new_kwargs, restore_loader_params
 
 
 def _cache_check_load_against_expected(*, signature_metadata_expected: dict[str, Any], model: object) -> None:
@@ -1353,7 +1404,7 @@ def device_guard(
     # device list takes precedence
     if device_list_override:
         if not device_normalized_override:
-            message = "if device_list_overide is provided, device_normalized_override must also be provided"
+            message = "if device_list_override is provided, device_normalized_override must also be provided"
             raise ValueError(message)
         logger.trace(f"Using device_list={device_list_override=}, device_normalized={device_normalized_override=}")
         return device_list_override, device_normalized_override, device_map
@@ -1387,7 +1438,7 @@ def device_guard(
         device_normalized = normalize_device("cpu")
     if device_normalized.type == "cpu" and cuda_available:
         logger.warning(
-            "CPU device requested and CUDA available, falling back to cpu mode and device_map=None",
+            "CPU device explicitly requested on a CUDA-capable host, using cpu and device_map=None",
         )
         device_map = None
         device_normalized = normalize_device("cpu")
@@ -1536,18 +1587,21 @@ def variant_guard(
     Behavior
     --------
     - If `variant_override` is provided (non-None), it is returned as-is.
-    - If `dtype` is `torch.float32`, returns the empty string (no variant).
+    - If `dtype` is `torch.float32`, returns None (no variant).
     - If `dtype` is `torch.float16` or `torch.bfloat16`, the function queries
       the repo file list (optionally at `revision`) and selects `"fp16"` **iff**
       any filename contains `"fp16"` or `"float16"` (e.g., `*.fp16.safetensors`,
-      `*float16.bin`, etc.). Otherwise returns the empty string.
+      `*float16.bin`, etc.). Otherwise returns None.
     - Any other `dtype` raises `ValueError`.
 
     Notes
     -----
-    - Returning the empty string means “do not set a variant” when calling
+    - Returning None means “do not set a variant” when calling
       `snapshot_download`; callers may choose to omit the `variant` kwarg in
       that case.
+    - The local-cache probe checks the files actually present in the cached
+      snapshot: a cached repo without fp16-named files returns None, keeping
+      offline runs from requesting a variant that would fail to load.
     - This is a filename-heuristic only. It does **not** guarantee that the
       entire repo is organized by formal Hub variants. It simply detects common
       half-precision naming patterns and maps them to `variant="fp16"`.
@@ -1572,9 +1626,9 @@ def variant_guard(
 
     Returns
     -------
-    str
+    str | None
         `"fp16"` if a half-precision variant appears available (per heuristic);
-        otherwise the empty string.
+        otherwise None.
 
     Raises
     ------
@@ -1618,19 +1672,26 @@ def variant_guard(
                 f"due to {local_hfhub_variant_check_only=} in variant_guard",
             )
             try:
-                # Probe whether an fp16 variant is cached locally
+                # Probe whether the repo is cached locally
                 # Note: with local_files_only==True it does NOT download
-                #       it instead returns a string
-                snapshot_download(
+                #       it instead returns the snapshot directory path
+                snapshot_path = snapshot_download(
                     repo_id=model_id,
                     revision=revision,
                     allow_patterns=["*fp16*.safetensors", "*float16*.safetensors"],
                     local_files_only=True,
                 )
-                has_fp16 = True
             except LocalEntryNotFoundError:
-                has_fp16 = False
+                logger.trace("Repo not in local huggingface_hub cache in variant_guard")
                 return no_variant
+            # A returned snapshot dir proves only that the repo is cached
+            # (allow_patterns does not make snapshot_download raise when
+            # zero files match); check the actual files for fp16 names
+            has_fp16 = any(
+                (("fp16" in entry.name) or ("float16" in entry.name)) and entry.name.endswith(".safetensors")
+                for entry in Path(snapshot_path).rglob("*")
+                if entry.is_file() or entry.is_symlink()
+            )
             logger.trace(f"Variant result {has_fp16=} in local huggingface_hub cache in variant_guard")
         else:
             logger.trace(
@@ -1690,10 +1751,11 @@ def quant_guard(
         config_input["bnb_4bit_use_double_quant"] = quant_use_double
 
     # check backend
+    # Note: BitsAndBytesConfig has no backend parameter, so the value is
+    #       validated here but never forwarded
     if backend != "bnb":
-        message = f"Only 'bnb' quantization backedn supported, provided {backend=}"
+        message = f"Only 'bnb' quantization backend supported, provided {backend=}"
         raise ValueError(message)
-    config_input["backend"] = backend
 
     # check if transformers or diffusers
     module = getattr(model_type, "__module__", "None")
@@ -1749,7 +1811,7 @@ def local_guard(*, local_files_only: bool = True) -> Generator[bool, None, None]
             os.environ.pop("HF_HUB_OFFLINE", None)
         yield local_files_only
     finally:
-        logger.trace("Restoring HF_HUB_OFFILNE in local_guard exit")
+        logger.trace("Restoring HF_HUB_OFFLINE in local_guard exit")
         if old is None:
             os.environ.pop("HF_HUB_OFFLINE", None)
         else:
@@ -1959,6 +2021,10 @@ def cache_guard(
       use ``variant``.
     - This function does **not** manage online/offline behavior; wrap your calls
       in ``local_guard(...)`` if you need to forbid network access.
+    - Cache-routing overrides applied to a ``loader_params_obj`` (e.g., pointing
+      ``model_id`` at the export directory) are scoped to the load and restored
+      afterwards, so the guard keeps its original identity and a
+      free-then-reload cycle recomputes the same signature (a cache hit).
     - The stored signature is minimal by design and does *not* include external
       state (e.g., environment, files on disk). If your loader depends on such
       state, include it explicitly in ``loader_args``/``loader_kwargs``.
@@ -2040,13 +2106,19 @@ def cache_guard(
         export_variant=export_variant,
     )
     # override values in loader_params_obj/loader_kwargs
-    loader_kwargs = _cache_apply_loader_overrides(
+    loader_kwargs, restore_loader_params = _cache_apply_loader_overrides(
         loader_params_obj=loader_params_obj,
         loader_kwargs=loader_kwargs,
         loader_overrides=loader_overrides,
     )
     # Load the model with same loader either way
-    model = loader_fn(**loader_kwargs)
+    # Note: restore in finally so the overrides stay scoped to this load
+    #       even on exception; a mutated model_id would break the export
+    #       signature match on the next reload
+    try:
+        model = loader_fn(**loader_kwargs)
+    finally:
+        restore_loader_params()
     # Verify loading was successful
     _cache_check_load_against_expected(signature_metadata_expected=signature_metadata_expected, model=model)
     # Export the model, if applicable
@@ -2132,14 +2204,16 @@ def vram_guard(
     * applies a deep to_cpu/detach for all outputs
         - a simple deepcopy is problematic for memory use and synchronization so we
           handle it more carefully, while still preserving deep inspection
-    * synchronizes (and waits on) all devices used and sanitze/re-throw exceptions
+    * synchronizes (and waits on) all devices used and sanitize/re-throw exceptions
     * memory cleanup at the end: garbage collection and torch cache clear (in proper order)
         - by default it garbage collects only on exceptions not successes
     * handles exceptions gracefully
 
     Warning:
-    This will detatch ALL exceptions, as even keyboard interrupts which are
-    typically not caught can tie up RAM/VRAM (e.g., in ipython/jupyter).
+    Exception sanitization (traceback detach) applies to Exception
+    subclasses only; BaseException escapes like KeyboardInterrupt or
+    SystemExit propagate unsanitized, although the finally-block sync,
+    garbage collection, and cache cleanup still run for them.
 
     Yields:
         if call function provided:
@@ -2195,7 +2269,7 @@ def vram_guard(
 
 @contextmanager
 def free_guard(*, device_list: list[torch.device], run_gc_and_clear_cache: bool = True) -> Generator[None, None, None]:
-    """Ensure garbage collectiona and cache clear happen after model free."""
+    """Ensure garbage collection and cache clear happen after model free."""
     # Note: models freed here
     yield
     # Apply GC and cache clear as we just freed up the models
@@ -2212,7 +2286,7 @@ def free_guard(*, device_list: list[torch.device], run_gc_and_clear_cache: bool 
             device_list=device_list,
         )
     else:
-        logger.warning("Skippnig garbage collection and cache_clear in free_guard")
+        logger.warning("Skipping garbage collection and cache_clear in free_guard")
 
 
 # ---------- aggregates for init, load, call ----------
@@ -2282,8 +2356,8 @@ def load_guard(
 ) -> object:
     """Aggregate context manager for model load.
 
-    Aggreages:
-        local_guard, eval_guard, vram_gurad (for loader), and cache_guard.
+    Aggregates:
+        local_guard, eval_guard, vram_guard (for loader), and cache_guard.
     """
     with (
         # extra protection for local files
@@ -2365,18 +2439,24 @@ def model_guard(
     """Provide guarded caller using all model_guard guards (convenience function).
 
     Inputs:
-        init_gurad_kwargs:
+        init_guard_kwargs:
             device, device_map, dtype, model_id, revision,
             local_hfhub_variant_check_only, device_list_override,
             dtype_override, variant_override
         load_guard_kwargs:
-            local_files_only, train_mode, loader_fn,
+            local_files_only, train_mode, loader_fn, device_list,
             export_name, only_load_export, force_export_refresh,
-        call _gurad_kwargs:
+            use_safetensors
+        call_guard_kwargs:
             need_grads, sanitize_all_exceptions, caller_fn, train_mode
         free_guard_kwargs:
             run_gc_and_clear_cache
     """
+    # Pre-bind names read in the finally block so an early failure
+    # (e.g., inside init_guard) propagates the original exception
+    # instead of a NameError from the cleanup itself
+    device_list = None
+    model = None
     try:
         # detect device-specific settings
         device_list, device_normalized, effective_dtype, variant, device_map, quant_config = init_guard(
@@ -2385,6 +2465,8 @@ def model_guard(
 
         # update
         # safely load the model
+        # Note: local_files_only and use_safetensors mirror load_guard's own
+        #       arguments (init_guard does not accept either)
         loader_kwargs = {
             "model_id": init_guard_kwargs["model_id"],
             "revision": init_guard_kwargs["revision"],
@@ -2392,7 +2474,8 @@ def model_guard(
             "dtype": effective_dtype,
             "variant": variant,
             "device_map": device_map,
-            "local_files_only": init_guard_kwargs["local_files_only"],
+            "local_files_only": load_guard_kwargs.get("local_files_only", False),
+            "use_safetensors": load_guard_kwargs.get("use_safetensors", True),
             "quant_config": quant_config,
         }
         model = load_guard(loader_kwargs=loader_kwargs, **load_guard_kwargs)
@@ -2408,10 +2491,11 @@ def model_guard(
             yield guarded_caller
 
     finally:
-        # Free at the end
-        with free_guard(
-            device_list=device_list,
-            **free_guard_kwargs,
-        ):
-            # explicitly delete it so GC/cache-clear can run
-            del model
+        # Free at the end, only once devices were resolved
+        if device_list is not None:
+            with free_guard(
+                device_list=device_list,
+                **free_guard_kwargs,
+            ):
+                # explicitly delete it so GC/cache-clear can run
+                del model

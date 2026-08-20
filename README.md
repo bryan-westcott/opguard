@@ -86,6 +86,7 @@ import torch
 from opguard import OpGuardBase
 from diffusers import AutoencoderTiny
 
+
 class TinyVAE(OpGuardBase):
     NAME = "tiny-vae"
     MODEL_ID = "madebyollin/taesd"
@@ -102,13 +103,12 @@ class TinyVAE(OpGuardBase):
 
     def _predict(self, *, input_proc):
         """Build a bespoke predictor that does encode-decode sequence (two calls)."""
-        return self._detector.decode(
-            self._detector.encode(input_proc.to(self.device, self.dtype)).latents
-        ).sample
+        return self._detector.decode(self._detector.encode(input_proc.to(self.device, self.dtype)).latents).sample
 
     def _postprocess(self, *, output_raw: torch.FloatTensor) -> PILImage:
         """Apply post-processing (called automatically after _predict."""
         return self._processor.postprocess(output_raw, output_type="pil")[0]
+
 
 # Run the VAE safely
 with TinyVAE() as vae:
