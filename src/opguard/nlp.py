@@ -104,7 +104,12 @@ class Blip2_16Bit(Blip2):
 
 
 class Blip2_8Bit(Blip2):
-    """Blip2 captioner with 8-bit quantization."""
+    """Blip2 captioner with 8-bit quantization.
+
+    Note: if 8-bit bnb loading rejects bfloat16 compute, override the
+    dtype to float16 (claim carried over from an old code note and not
+    yet verified empirically).
+    """
 
     NAME = "blip2-conditional-8bit"
     DTYPE_PREFERENCE = torch.bfloat16
@@ -115,6 +120,6 @@ class Blip2_4Bit(Blip2):
     """Blip2 captioner with 4-bit quantization (under 4GB VRAM)."""
 
     NAME = "blip2-conditional-4bit"
-    DTYPE_PREFERENCE = torch.bfloat16  # when using 8-bit bnb, must use float16 not bfloat16
+    DTYPE_PREFERENCE = torch.bfloat16  # supported bnb_4bit compute dtype
     DEFAULT_QUANT_TYPE = "nf4"
     DEFAULT_QUANT_USE_DOUBLE: bool = True
