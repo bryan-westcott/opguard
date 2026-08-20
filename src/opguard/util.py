@@ -1576,18 +1576,21 @@ def variant_guard(
     Behavior
     --------
     - If `variant_override` is provided (non-None), it is returned as-is.
-    - If `dtype` is `torch.float32`, returns the empty string (no variant).
+    - If `dtype` is `torch.float32`, returns None (no variant).
     - If `dtype` is `torch.float16` or `torch.bfloat16`, the function queries
       the repo file list (optionally at `revision`) and selects `"fp16"` **iff**
       any filename contains `"fp16"` or `"float16"` (e.g., `*.fp16.safetensors`,
-      `*float16.bin`, etc.). Otherwise returns the empty string.
+      `*float16.bin`, etc.). Otherwise returns None.
     - Any other `dtype` raises `ValueError`.
 
     Notes
     -----
-    - Returning the empty string means “do not set a variant” when calling
+    - Returning None means “do not set a variant” when calling
       `snapshot_download`; callers may choose to omit the `variant` kwarg in
       that case.
+    - The local-cache probe checks the files actually present in the cached
+      snapshot: a cached repo without fp16-named files returns None, keeping
+      offline runs from requesting a variant that would fail to load.
     - This is a filename-heuristic only. It does **not** guarantee that the
       entire repo is organized by formal Hub variants. It simply detects common
       half-precision naming patterns and maps them to `variant="fp16"`.
@@ -1612,9 +1615,9 @@ def variant_guard(
 
     Returns
     -------
-    str
+    str | None
         `"fp16"` if a half-precision variant appears available (per heuristic);
-        otherwise the empty string.
+        otherwise None.
 
     Raises
     ------
@@ -1658,19 +1661,26 @@ def variant_guard(
                 f"due to {local_hfhub_variant_check_only=} in variant_guard",
             )
             try:
-                # Probe whether an fp16 variant is cached locally
+                # Probe whether the repo is cached locally
                 # Note: with local_files_only==True it does NOT download
-                #       it instead returns a string
-                snapshot_download(
+                #       it instead returns the snapshot directory path
+                snapshot_path = snapshot_download(
                     repo_id=model_id,
                     revision=revision,
                     allow_patterns=["*fp16*.safetensors", "*float16*.safetensors"],
                     local_files_only=True,
                 )
-                has_fp16 = True
             except LocalEntryNotFoundError:
-                has_fp16 = False
+                logger.trace("Repo not in local huggingface_hub cache in variant_guard")
                 return no_variant
+            # A returned snapshot dir proves only that the repo is cached
+            # (allow_patterns does not make snapshot_download raise when
+            # zero files match); check the actual files for fp16 names
+            has_fp16 = any(
+                (("fp16" in entry.name) or ("float16" in entry.name)) and entry.name.endswith(".safetensors")
+                for entry in Path(snapshot_path).rglob("*")
+                if entry.is_file() or entry.is_symlink()
+            )
             logger.trace(f"Variant result {has_fp16=} in local huggingface_hub cache in variant_guard")
         else:
             logger.trace(
